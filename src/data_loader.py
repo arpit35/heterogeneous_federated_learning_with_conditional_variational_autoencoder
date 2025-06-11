@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 from datasets import load_from_disk
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import DirichletPartitioner
@@ -13,8 +14,8 @@ class DataLoader:
     def __init__(
         self,
         dataset_input_feature: str,
-        dataset_target_feature: str,
-        dataset_name: str,
+        dataset_target_feature: str = "label",
+        dataset_name: str = "mnist",
     ):
         self.dataset_name = dataset_name
         self.dataset_input_feature = dataset_input_feature
@@ -62,9 +63,16 @@ class DataLoader:
 
         # Get image shape and channels
         image = sample_example[self.dataset_input_feature]
+        print(f"Sample image type: {type(image)}")
+
         if hasattr(image, "shape"):
             height, width = image.shape[:2]
             channels = 1 if len(image.shape) == 2 else image.shape[2]
+        elif hasattr(image, "size"):  # PIL Image
+            width, height = image.size
+            # Infer channels from mode
+            mode_to_channels = {"1": 1, "L": 1, "P": 1, "RGB": 3, "RGBA": 4, "CMYK": 4}
+            channels = mode_to_channels.get(image.mode, 1)
         else:
             raise ValueError("Cannot determine image dimensions from sample.")
 
@@ -103,6 +111,20 @@ class DataLoader:
 
             partition = fds.load_partition(client_id)
 
+            labels = partition[self.dataset_target_feature]
+            # Compute the unique classes and their counts
+            unique_classes, counts = np.unique(labels, return_counts=True)
+
+            # Filter out classes with only one row
+            classes_to_keep = set(unique_classes[counts > 1])
+            partition = partition.filter(
+                lambda example, keep=classes_to_keep: example[
+                    self.dataset_target_feature
+                ]
+                in keep,
+                load_from_cache_file=False,
+            )
+
             partition_train_test = partition.train_test_split(
                 test_size=0.2, seed=42, stratify_by_column=self.dataset_target_feature
             )
@@ -121,7 +143,7 @@ class DataLoader:
         data_type: str,
         client_folder_path,
         batch_size,
-    ):
+    ) -> TorchDataLoader:
         client_file_path = os.path.join(client_folder_path, data_type)
 
         client_dataset = load_from_disk(client_file_path).with_transform(

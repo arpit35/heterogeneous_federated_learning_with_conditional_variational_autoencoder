@@ -23,13 +23,13 @@ fraction-evaluate = 1
 local-epochs = 3
 batch-size = 128
 data-loader-alpha = 0.1
+num-server-rounds = 100
 prepare-dataset = false
 
 # Paths
 logs-folder-path = "log"
 dataset-folder-path = "src/clients_dataset"
 plots-folder-path = "src/plots"
-models-folder-path = "src/models"
 
 # Dataset and Model Configuration
 dataset-name = "mnist"
