@@ -5,7 +5,8 @@ from flwr.client import ClientApp, NumPyClient
 from flwr.common import Context
 
 from src.data_loader import DataLoader
-from src.ml_models.cnn import CNN, cnn_config
+from src.ml_models.cnn import cnn_config
+from src.ml_models.HFedPVA import HFedPVA
 from src.ml_models.utils import get_weights, set_weights, test, train
 from src.utils.logger import get_logger
 
@@ -23,12 +24,11 @@ class FlowerClient(NumPyClient):
         dataset_target_feature,
     ):
         super().__init__()
-        # self.net = CNN(
-        #     cnn_type=list(cnn_config.keys())[
-        #         int(client_number+1) % len(cnn_config.keys())
-        #     ]
-        # )
-        self.net = CNN(cnn_type="cnn1")
+        self.cnn_type = list(cnn_config.keys())[
+            int(client_number + 1) % len(cnn_config.keys())
+        ]
+        self.net = HFedPVA(self.cnn_type)
+        # self.net = CNN(cnn_type="cnn1")
         self.client_number = client_number
         self.batch_size = batch_size
         self.local_epochs = local_epochs
@@ -49,6 +49,29 @@ class FlowerClient(NumPyClient):
         # Fetching configuration settings from the server for the fit operation (server.configure_fit)
         current_round = config.get("current_round", 0)
 
+        if current_round == 0:
+            generic_encoder_start = config.get("generic_encoder_start")
+            generic_encoder_end = config.get("generic_encoder_end")
+            personalized_encoder_start = config.get("personalized_encoder_start")
+            personalized_encoder_end = config.get("personalized_encoder_end")
+            decoder_start = config.get("decoder_start")
+            decoder_end = config.get("decoder_end")
+
+            set_weights(
+                self.net.generic_encoder,
+                parameters[generic_encoder_start:generic_encoder_end],
+            )
+
+            set_weights(
+                self.net.personalized_encoder,
+                parameters[personalized_encoder_start:personalized_encoder_end],
+            )
+
+            set_weights(
+                self.net.decoder,
+                parameters[decoder_start:decoder_end],
+            )
+
         dataloader = DataLoader(
             dataset_input_feature=self.dataset_input_feature,
         )
@@ -63,8 +86,6 @@ class FlowerClient(NumPyClient):
             self.client_folder_path,
             self.batch_size,
         )
-
-        set_weights(self.net, parameters)
 
         train_results = train(
             self.net,

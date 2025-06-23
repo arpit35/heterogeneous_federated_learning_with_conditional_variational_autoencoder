@@ -82,4 +82,4 @@ class HFedPVA(nn.Module):
         # Reconstruction
         recon_x = self.decoder(z, c)
 
-        return recon_x, mu_z, logvar_z, mu_c, logvar_c
+        return y_logits, recon_x, mu_z, logvar_z, mu_c, logvar_c

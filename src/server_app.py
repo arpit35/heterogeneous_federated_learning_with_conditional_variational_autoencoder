@@ -2,6 +2,7 @@ import json
 import os
 from typing import List, Tuple
 
+import numpy as np
 from flwr.common import (
     Context,
     EvaluateIns,
@@ -13,7 +14,9 @@ from flwr.common import (
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from flwr.server.strategy import FedAvg
 
-from src.ml_models.cnn import CNN
+from src.ml_models.decoder import Decoder
+from src.ml_models.generic_encoder import GenericEncoder
+from src.ml_models.personalized_encoder import PersonalizedEncoder
 from src.ml_models.utils import get_weights
 
 
@@ -39,6 +42,7 @@ class CustomFedAvg(FedAvg):
         num_server_rounds,
         plots_folder_path,
         dataset_name,
+        parameter_indices_config,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -46,6 +50,7 @@ class CustomFedAvg(FedAvg):
         self.num_server_rounds = num_server_rounds
         self.plots_folder_path = plots_folder_path
         self.dataset_name = dataset_name
+        self.parameter_indices_config = parameter_indices_config
         self.client_plot = {}
 
     def configure_fit(self, server_round, parameters, client_manager):
@@ -55,6 +60,10 @@ class CustomFedAvg(FedAvg):
         config: dict[str, Scalar] = {
             "current_round": server_round,
         }
+
+        if server_round == 0:
+            # Initialize the parameters for the first round
+            config = {**config, **self.parameter_indices_config}
 
         print("fit_ins.config", config)
 
@@ -127,7 +136,35 @@ def server_fn(context: Context):
     plots_folder_path = context.run_config.get("plots-folder-path")
     dataset_name = context.run_config.get("dataset-name")
 
-    parameters = ndarrays_to_parameters(get_weights(CNN(cnn_type="cnn1")))
+    generic_encoder_parameters = get_weights(GenericEncoder())
+    personalized_encoder_parameters = get_weights(PersonalizedEncoder())
+    decoder_parameters = get_weights(Decoder())
+
+    all_weights = (
+        generic_encoder_parameters
+        + personalized_encoder_parameters
+        + decoder_parameters
+    )
+
+    # Convert to a single Parameters object
+    initial_parameters = ndarrays_to_parameters(all_weights)
+
+    # Calculate parameter indices
+    gen_enc_start = 0
+    gen_enc_end = len(generic_encoder_parameters)
+    pers_enc_start = gen_enc_end
+    pers_enc_end = pers_enc_start + len(personalized_encoder_parameters)
+    dec_start = pers_enc_end
+    dec_end = dec_start + len(decoder_parameters)
+
+    parameter_indices_config = {
+        "generic_encoder_start": gen_enc_start,
+        "generic_encoder_end": gen_enc_end,
+        "personalized_encoder_start": pers_enc_start,
+        "personalized_encoder_end": pers_enc_end,
+        "decoder_start": dec_start,
+        "decoder_end": dec_end,
+    }
 
     # Define the strategy
     strategy = CustomFedAvg(
@@ -135,9 +172,10 @@ def server_fn(context: Context):
         evaluate_metrics_aggregation_fn=weighted_average,
         num_of_clients=num_of_clients,
         num_server_rounds=num_server_rounds,
-        dataset_name=dataset_name,
         plots_folder_path=plots_folder_path,
-        initial_parameters=parameters,
+        dataset_name=dataset_name,
+        parameter_indices_config=parameter_indices_config,
+        initial_parameters=initial_parameters,
     )
     config = ServerConfig(num_rounds=int(context.run_config["num-server-rounds"]))
 
