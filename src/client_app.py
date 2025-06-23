@@ -20,6 +20,7 @@ class FlowerClient(NumPyClient):
         local_epochs,
         learning_rate,
         dataset_folder_path,
+        model_folder_path,
         dataset_input_feature,
         dataset_target_feature,
     ):
@@ -33,8 +34,11 @@ class FlowerClient(NumPyClient):
         self.batch_size = batch_size
         self.local_epochs = local_epochs
         self.learning_rate = learning_rate
-        self.client_folder_path = os.path.join(
+        self.client_data_folder_path = os.path.join(
             dataset_folder_path, f"client_{client_number}"
+        )
+        self.client_model_folder_path = os.path.join(
+            model_folder_path, f"client_{client_number}", "model.pth"
         )
         self.dataset_input_feature = dataset_input_feature
         self.dataset_target_feature = dataset_target_feature
@@ -50,6 +54,8 @@ class FlowerClient(NumPyClient):
         current_round = config.get("current_round", 0)
 
         if current_round == 0:
+            os.makedirs(self.client_model_folder_path, exist_ok=True)
+
             generic_encoder_start = config.get("generic_encoder_start")
             generic_encoder_end = config.get("generic_encoder_end")
             personalized_encoder_start = config.get("personalized_encoder_start")
@@ -71,6 +77,9 @@ class FlowerClient(NumPyClient):
                 self.net.decoder,
                 parameters[decoder_start:decoder_end],
             )
+        else:
+            self.net.load_state_dict(torch.load(self.client_model_folder_path))
+            set_weights(self.net.personalized_encoder, parameters)
 
         dataloader = DataLoader(
             dataset_input_feature=self.dataset_input_feature,
@@ -78,12 +87,12 @@ class FlowerClient(NumPyClient):
 
         train_dataloader = dataloader.load_dataset_from_disk(
             "train_data",
-            self.client_folder_path,
+            self.client_data_folder_path,
             self.batch_size,
         )
         test_dataloader = dataloader.load_dataset_from_disk(
             "test_data",
-            self.client_folder_path,
+            self.client_data_folder_path,
             self.batch_size,
         )
 
@@ -98,14 +107,17 @@ class FlowerClient(NumPyClient):
             self.dataset_target_feature,
         )
 
+        torch.save(self.net.state_dict(), self.client_model_folder_path)
+
         return (
-            get_weights(self.net),
+            get_weights(self.net.personalized_encoder),
             len(train_dataloader.dataset),
             train_results,
         )
 
     def evaluate(self, parameters, config):
-        set_weights(self.net, parameters)
+        self.net.load_state_dict(torch.load(self.client_model_folder_path))
+        set_weights(self.net.personalized_encoder, parameters)
 
         dataloader = DataLoader(
             dataset_input_feature=self.dataset_input_feature,
@@ -113,7 +125,7 @@ class FlowerClient(NumPyClient):
 
         test_dataloader = dataloader.load_dataset_from_disk(
             "test_data",
-            self.client_folder_path,
+            self.client_data_folder_path,
             self.batch_size,
         )
 
@@ -142,6 +154,7 @@ def client_fn(context: Context):
     local_epochs = context.run_config.get("local-epochs")
     learning_rate = context.run_config.get("learning-rate")
     dataset_folder_path = context.run_config.get("dataset-folder-path")
+    model_folder_path = context.run_config.get("model-folder-path")
     dataset_input_feature = context.run_config.get("dataset-input-feature")
     dataset_target_feature = context.run_config.get("dataset-target-feature")
 
@@ -152,6 +165,7 @@ def client_fn(context: Context):
         local_epochs,
         learning_rate,
         dataset_folder_path,
+        model_folder_path,
         dataset_input_feature,
         dataset_target_feature,
     ).to_client()

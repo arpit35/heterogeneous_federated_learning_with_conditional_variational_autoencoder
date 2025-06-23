@@ -17,7 +17,7 @@ serverapp = "src.server_app:app"
 clientapp = "src.client_app:app"
 
 [tool.flwr.app.config]
-num-of-clients = 1
+num-of-clients = 5
 learning-rate = 0.001
 fraction-evaluate = 1
 local-epochs = 3
@@ -30,6 +30,7 @@ prepare-dataset = false
 logs-folder-path = "log"
 dataset-folder-path = "src/clients_dataset"
 plots-folder-path = "src/plots"
+model-folder-path = "src/clients_models"
 
 # Dataset and Model Configuration
 dataset-name = "mnist"
@@ -40,10 +41,10 @@ dataset-target-feature = "label"
 default = "local-simulation"
 
 [tool.flwr.federations.local-simulation]
-options.num-supernodes = 1
+options.num-supernodes = 5
 
 [tool.flwr.federations.local-simulation-gpu]
-options.num-supernodes = 1
+options.num-supernodes = 5
 options.backend.client-resources.num-cpus = 2 # each ClientApp assumes to use 2CPUs
 options.backend.client-resources.num-gpus = 0.1 # at most 5 ClientApp will run in a given GPU
 

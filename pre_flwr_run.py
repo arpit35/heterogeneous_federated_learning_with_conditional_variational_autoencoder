@@ -24,11 +24,13 @@ def pre_flwr_run():
     )
 
     logs_folder_path = config.get("logs-folder-path", None)
+    model_folder_path = config.get("model-folder-path", None)
     dataset_folder_path = config.get("dataset-folder-path", None)
 
     # clearing logs before running the experiment
-    print("Clearing logs...")
+    print("Clearing logs and models...")
     clear_folder_contents(logs_folder_path)
+    clear_folder_contents(model_folder_path)
 
     # preparing the dataset
     prepare_dataset(config, dataset_folder_path)
