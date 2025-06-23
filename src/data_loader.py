@@ -90,6 +90,10 @@ class DataLoader:
             "image_width": width,
             "image_height": height,
             "num_channels": channels,
+            "encoder_hidden_dim": int((width * height * channels) / 10),
+            "generic_encoder_latent_dim": int((width + height + channels) / 5),
+            "personalized_encoder_latent_dim": int((width + height + channels) / 10),
+            "decoder_hidden_dim": int((width * height * channels) / 10),
         }
 
     def save_datasets_to_disk(

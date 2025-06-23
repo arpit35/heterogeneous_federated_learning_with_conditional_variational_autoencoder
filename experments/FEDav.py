@@ -14,8 +14,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Hyperparameters
 input_dim = 784  # 28x28 flattened
 hidden_dim = 400
-latent_z = 30  # Universal knowledge representation
-latent_c = 15  # Client-specific representation
+latent_z = 25  # Universal knowledge representation
+latent_c = 3  # Client-specific representation
 batch_size = 128
 epochs = 20
 learning_rate = 0.001
