@@ -20,26 +20,13 @@ class DataLoader:
         self.dataset_name = dataset_name
         self.dataset_input_feature = dataset_input_feature
         self.dataset_target_feature = dataset_target_feature
-        self.pytorch_transforms = None
+        self.pytorch_transforms = transforms.Compose(
+            [
+                transforms.ToTensor(),
+            ]
+        )
 
     def _apply_transforms(self, batch):
-        if self.pytorch_transforms is None:
-            num_channels = metadata.get("num_channels")
-
-            if num_channels == 1:
-                normalize = transforms.Normalize((0.5,), (0.5,))
-            elif num_channels == 3:
-                normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-            else:
-                raise ValueError(f"Unsupported number of channels: {num_channels}")
-
-            self.pytorch_transforms = transforms.Compose(
-                [
-                    transforms.ToTensor(),
-                    normalize,
-                ]
-            )
-
         batch[self.dataset_input_feature] = [
             self.pytorch_transforms(img) for img in batch[self.dataset_input_feature]
         ]

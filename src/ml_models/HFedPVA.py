@@ -34,11 +34,12 @@ class HFedPVA(nn.Module):
         all_mu_c,
         all_logvar_c,
     ):
+        x_flat = x.view(x.size(0), -1)
         # Classification loss
         ce_loss = F.cross_entropy(y_logits, y_true, reduction="sum")
 
         # Reconstruction loss
-        BCE = F.binary_cross_entropy(recon_x, x, reduction="sum")
+        BCE = F.binary_cross_entropy(recon_x, x_flat, reduction="sum")
 
         # KL Regularizers (Eq.6-7)
         # R_z: KL(q(z|x) || p(z)) (p(z) = N(0,I))

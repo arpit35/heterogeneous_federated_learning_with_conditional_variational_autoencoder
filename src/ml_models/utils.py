@@ -40,7 +40,7 @@ def train(
             all_logvar_c = logvar_c.detach().clone()
 
             # Calculate loss
-            loss, _, _, _ = net.combined_loss(
+            loss, _, _, _, _ = net.combined_loss(
                 y_logits,
                 labels,
                 recon_x,
@@ -88,7 +88,7 @@ def test(net, testloader, device, dataset_input_feature, dataset_target_feature)
             all_logvar_c = logvar_c.detach().clone()
 
             # Calculate loss
-            _, ce_loss, _, _ = net.combined_loss(
+            _, ce_loss, _, _, _ = net.combined_loss(
                 y_logits,
                 labels,
                 recon_x,

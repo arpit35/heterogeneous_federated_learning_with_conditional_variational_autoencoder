@@ -2,5 +2,9 @@
     "num_classes": 10,
     "image_width": 28,
     "image_height": 28,
-    "num_channels": 1
+    "num_channels": 1,
+    "encoder_hidden_dim": 78,
+    "generic_encoder_latent_dim": 11,
+    "personalized_encoder_latent_dim": 5,
+    "decoder_hidden_dim": 78
 }

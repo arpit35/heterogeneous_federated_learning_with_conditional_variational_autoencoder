@@ -38,7 +38,7 @@ class FlowerClient(NumPyClient):
             dataset_folder_path, f"client_{client_number}"
         )
         self.client_model_folder_path = os.path.join(
-            model_folder_path, f"client_{client_number}", "model.pth"
+            model_folder_path, f"client_{client_number}"
         )
         self.dataset_input_feature = dataset_input_feature
         self.dataset_target_feature = dataset_target_feature
@@ -51,9 +51,9 @@ class FlowerClient(NumPyClient):
 
     def fit(self, parameters, config):
         # Fetching configuration settings from the server for the fit operation (server.configure_fit)
-        current_round = config.get("current_round", 0)
+        current_round = config.get("current_round")
 
-        if current_round == 0:
+        if current_round == 1:
             os.makedirs(self.client_model_folder_path, exist_ok=True)
 
             generic_encoder_start = config.get("generic_encoder_start")
@@ -78,7 +78,9 @@ class FlowerClient(NumPyClient):
                 parameters[decoder_start:decoder_end],
             )
         else:
-            self.net.load_state_dict(torch.load(self.client_model_folder_path))
+            self.net.load_state_dict(
+                torch.load(self.client_model_folder_path + "/model.pth")
+            )
             set_weights(self.net.personalized_encoder, parameters)
 
         dataloader = DataLoader(
@@ -107,7 +109,7 @@ class FlowerClient(NumPyClient):
             self.dataset_target_feature,
         )
 
-        torch.save(self.net.state_dict(), self.client_model_folder_path)
+        torch.save(self.net.state_dict(), self.client_model_folder_path + "/model.pth")
 
         return (
             get_weights(self.net.personalized_encoder),
@@ -116,7 +118,9 @@ class FlowerClient(NumPyClient):
         )
 
     def evaluate(self, parameters, config):
-        self.net.load_state_dict(torch.load(self.client_model_folder_path))
+        self.net.load_state_dict(
+            torch.load(self.client_model_folder_path + "/model.pth")
+        )
         set_weights(self.net.personalized_encoder, parameters)
 
         dataloader = DataLoader(

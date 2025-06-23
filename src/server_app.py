@@ -61,7 +61,7 @@ class CustomFedAvg(FedAvg):
             "current_round": server_round,
         }
 
-        if server_round == 0:
+        if server_round == 1:
             # Initialize the parameters for the first round
             config = {**config, **self.parameter_indices_config}
 
