@@ -1,1 +1,1 @@
-{}
+{"0": {"1": {"metrics": {"client_number": 0, "accuracy": 0.9832962138084632}}}, "1": {"1": {"metrics": {"client_number": 1, "accuracy": 0.9739528335093277}}}, "4": {"1": {"metrics": {"client_number": 4, "accuracy": 0.9924433249370277}}}, "2": {"1": {"metrics": {"client_number": 2, "accuracy": 0.9564750134336378}}}, "3": {"1": {"metrics": {"client_number": 3, "accuracy": 0.981998199819982}}}}

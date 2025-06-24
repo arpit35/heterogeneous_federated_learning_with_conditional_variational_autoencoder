@@ -11,7 +11,7 @@ from src.ml_models.personalized_encoder import PersonalizedEncoder
 class HFedPVA(nn.Module):
     def __init__(self, cnn_type: str):
         super().__init__()
-        self.cnn_classifier = CNN(cnn_type)
+        self.cnn_classifier = CNN(cnn_type=cnn_type)
         self.generic_encoder = GenericEncoder()
         self.personalized_encoder = PersonalizedEncoder()
         self.decoder = Decoder()
@@ -39,7 +39,9 @@ class HFedPVA(nn.Module):
         ce_loss = F.cross_entropy(y_logits, y_true, reduction="sum")
 
         # Reconstruction loss
-        BCE = F.binary_cross_entropy(recon_x, x_flat, reduction="sum")
+        BCE = F.cross_entropy(recon_x, x_flat, reduction="sum")
+
+        print(f"CE Loss: {ce_loss.item()}, BCE Loss: {BCE.item()}")
 
         # KL Regularizers (Eq.6-7)
         # R_z: KL(q(z|x) || p(z)) (p(z) = N(0,I))

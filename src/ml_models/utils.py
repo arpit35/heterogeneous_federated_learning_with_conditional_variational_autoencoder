@@ -103,5 +103,5 @@ def test(net, testloader, device, dataset_input_feature, dataset_target_feature)
 
             correct += (torch.max(y_logits, 1)[1] == labels).sum().item()
     accuracy = correct / len(testloader.dataset)
-    loss = ce_loss / len(testloader.dataset)
+    loss = ce_loss.item() / len(testloader.dataset)
     return loss, accuracy

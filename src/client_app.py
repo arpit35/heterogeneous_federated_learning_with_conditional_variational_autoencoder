@@ -28,8 +28,7 @@ class FlowerClient(NumPyClient):
         self.cnn_type = list(cnn_config.keys())[
             int(client_number + 1) % len(cnn_config.keys())
         ]
-        self.net = HFedPVA(self.cnn_type)
-        # self.net = CNN(cnn_type="cnn1")
+        self.net = HFedPVA(cnn_type=self.cnn_type)
         self.client_number = client_number
         self.batch_size = batch_size
         self.local_epochs = local_epochs
@@ -77,9 +76,13 @@ class FlowerClient(NumPyClient):
                 self.net.decoder,
                 parameters[decoder_start:decoder_end],
             )
+
         else:
             self.net.load_state_dict(
-                torch.load(self.client_model_folder_path + "/model.pth")
+                torch.load(
+                    self.client_model_folder_path + "/model.pth",
+                    map_location="cpu",
+                )
             )
             set_weights(self.net.personalized_encoder, parameters)
 
@@ -119,7 +122,7 @@ class FlowerClient(NumPyClient):
 
     def evaluate(self, parameters, config):
         self.net.load_state_dict(
-            torch.load(self.client_model_folder_path + "/model.pth")
+            torch.load(self.client_model_folder_path + "/model.pth", map_location="cpu")
         )
         set_weights(self.net.personalized_encoder, parameters)
 
