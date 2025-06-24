@@ -98,13 +98,14 @@ class CustomFedAvg(FedAvg):
         return [(client, evaluate_ins) for client in clients]
 
     def aggregate_fit(self, server_round, results, failures):
-        for client_proxy, fit_res in results:
+        for _, fit_res in results:
             print("fit_res.metrics", fit_res.metrics)
         return super().aggregate_fit(server_round, results, failures)
 
     def aggregate_evaluate(self, server_round, results, failures):
 
         for _, eval_res in results:
+            print("eval_res.metrics", eval_res.metrics)
             client_number = eval_res.metrics["client_number"]
 
             if client_number not in self.client_plot:

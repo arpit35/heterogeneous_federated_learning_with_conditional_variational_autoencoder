@@ -33,6 +33,7 @@ class FlowerClient(NumPyClient):
         self.batch_size = batch_size
         self.local_epochs = local_epochs
         self.learning_rate = learning_rate
+        self.dataset_folder_path = dataset_folder_path
         self.client_data_folder_path = os.path.join(
             dataset_folder_path, f"client_{client_number}"
         )
@@ -95,8 +96,8 @@ class FlowerClient(NumPyClient):
             self.client_data_folder_path,
             self.batch_size,
         )
-        test_dataloader = dataloader.load_dataset_from_disk(
-            "test_data",
+        val_dataloader = dataloader.load_dataset_from_disk(
+            "val_data",
             self.client_data_folder_path,
             self.batch_size,
         )
@@ -104,7 +105,7 @@ class FlowerClient(NumPyClient):
         train_results = train(
             self.net,
             train_dataloader,
-            test_dataloader,
+            val_dataloader,
             self.local_epochs,
             self.learning_rate,
             self.device,
@@ -130,10 +131,8 @@ class FlowerClient(NumPyClient):
             dataset_input_feature=self.dataset_input_feature,
         )
 
-        test_dataloader = dataloader.load_dataset_from_disk(
-            "test_data",
-            self.client_data_folder_path,
-            self.batch_size,
+        test_dataloader = dataloader.load_test_dataset_from_disk(
+            self.dataset_folder_path, self.batch_size
         )
 
         loss, accuracy = test(

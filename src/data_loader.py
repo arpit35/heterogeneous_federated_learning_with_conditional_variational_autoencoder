@@ -1,7 +1,7 @@
 import os
 
 import numpy as np
-from datasets import load_from_disk
+from datasets import load_dataset, load_from_disk
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import DirichletPartitioner
 from torch.utils.data import DataLoader as TorchDataLoader
@@ -20,25 +20,13 @@ class DataLoader:
         self.dataset_name = dataset_name
         self.dataset_input_feature = dataset_input_feature
         self.dataset_target_feature = dataset_target_feature
-        self.pytorch_transforms = None
+        self.pytorch_transforms = self.pytorch_transforms = transforms.Compose(
+            [
+                transforms.ToTensor(),
+            ]
+        )
 
     def _apply_transforms(self, batch):
-        if self.pytorch_transforms is None:
-            num_channels = metadata.get("num_channels")
-
-            if num_channels == 1:
-                normalize = transforms.Normalize((0.5,), (0.5,))
-            elif num_channels == 3:
-                normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-            else:
-                raise ValueError(f"Unsupported number of channels: {num_channels}")
-
-            self.pytorch_transforms = transforms.Compose(
-                [
-                    transforms.ToTensor(),
-                    normalize,
-                ]
-            )
 
         batch[self.dataset_input_feature] = [
             self.pytorch_transforms(img) for img in batch[self.dataset_input_feature]
@@ -129,18 +117,24 @@ class DataLoader:
                 load_from_cache_file=False,
             )
 
-            partition_train_test = partition.train_test_split(
+            partition_train_val = partition.train_test_split(
                 test_size=0.2, seed=42, stratify_by_column=self.dataset_target_feature
             )
 
-            train_partition = partition_train_test["train"]
-            test_partition = partition_train_test["test"]
+            train_partition = partition_train_val["train"]
+            val_partition = partition_train_val["test"]
 
             train_path = os.path.join(client_dataset_folder_path, "train_data")
-            test_path = os.path.join(client_dataset_folder_path, "test_data")
+            val_path = os.path.join(client_dataset_folder_path, "val_data")
 
             train_partition.save_to_disk(train_path)
-            test_partition.save_to_disk(test_path)
+            val_partition.save_to_disk(val_path)
+
+        # Load and save test dataset (common for all clients)
+        test_set = load_dataset(self.dataset_name, split="test")
+        test_path = os.path.join(dataset_folder_path, "test_data")
+        os.makedirs(os.path.dirname(test_path), exist_ok=True)
+        test_set.save_to_disk(test_path)
 
     def load_dataset_from_disk(
         self,
@@ -161,3 +155,20 @@ class DataLoader:
         )
 
         return data_loader
+
+    def load_test_dataset_from_disk(
+        self,
+        dataset_folder_path: str,
+        batch_size: int,
+    ) -> TorchDataLoader:
+        test_path = os.path.join(dataset_folder_path, "test_data")
+
+        test_dataset = load_from_disk(test_path).with_transform(self._apply_transforms)
+
+        test_loader = TorchDataLoader(
+            test_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+        )
+
+        return test_loader

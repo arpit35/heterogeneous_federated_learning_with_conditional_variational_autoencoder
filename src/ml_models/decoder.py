@@ -22,7 +22,7 @@ class Decoder(nn.Module):
                 * metadata["image_height"]
                 * metadata["num_channels"],
             ),
-            nn.Tanh(),
+            nn.Sigmoid(),
         )
 
     def forward(self, generic_encoder_latent_space, personalized_encoder_latent_space):

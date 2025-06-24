@@ -39,9 +39,7 @@ class HFedPVA(nn.Module):
         ce_loss = F.cross_entropy(y_logits, y_true, reduction="sum")
 
         # Reconstruction loss
-        BCE = F.cross_entropy(recon_x, x_flat, reduction="sum")
-
-        print(f"CE Loss: {ce_loss.item()}, BCE Loss: {BCE.item()}")
+        BCE = F.binary_cross_entropy(recon_x, x_flat, reduction="sum")
 
         # KL Regularizers (Eq.6-7)
         # R_z: KL(q(z|x) || p(z)) (p(z) = N(0,I))
@@ -62,10 +60,10 @@ class HFedPVA(nn.Module):
         )
 
         # Slack regularizer (Eq.5,7)
-        R_c = torch.max(0.01 + KLD_c_client, KLD_c_prior)
+        R_c = torch.max(0.1 + KLD_c_client, KLD_c_prior)
 
         # Final loss (Eq.4)
-        feddva_loss = BCE + KLD_z + R_c
+        feddva_loss = 0.01 * BCE + KLD_z + R_c
 
         total_loss = ce_loss + feddva_loss
 
