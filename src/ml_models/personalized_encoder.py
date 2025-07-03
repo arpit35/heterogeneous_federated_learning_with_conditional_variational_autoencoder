@@ -9,7 +9,7 @@ class PersonalizedEncoder(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(
-                metadata["num_classes"] + metadata["generic_encoder_latent_dim"],
+                metadata["encoder_input_dim"] + metadata["generic_encoder_latent_dim"],
                 metadata["encoder_hidden_dim"],
             ),
             nn.ReLU(),

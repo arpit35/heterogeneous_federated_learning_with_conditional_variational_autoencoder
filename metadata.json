@@ -3,8 +3,9 @@
     "image_width": 28,
     "image_height": 28,
     "num_channels": 1,
-    "encoder_hidden_dim": 78,
-    "generic_encoder_latent_dim": 11,
-    "personalized_encoder_latent_dim": 5,
-    "decoder_hidden_dim": 78
+    "encoder_hidden_dim": 392,
+    "generic_encoder_latent_dim": 28,
+    "personalized_encoder_latent_dim": 11,
+    "decoder_hidden_dim": 392,
+    "encoder_input_dim": 784
 }

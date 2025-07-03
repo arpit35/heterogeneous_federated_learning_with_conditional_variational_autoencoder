@@ -7,7 +7,7 @@ class GenericEncoder(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(metadata["num_classes"], metadata["encoder_hidden_dim"]),
+            nn.Linear(metadata["encoder_input_dim"], metadata["encoder_hidden_dim"]),
             nn.ReLU(),
             nn.Linear(metadata["encoder_hidden_dim"], metadata["encoder_hidden_dim"]),
             nn.ReLU(),

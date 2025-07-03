@@ -181,6 +181,8 @@ def feddva_loss(
     # Reconstruction loss
     BCE = F.binary_cross_entropy(recon_x, x, reduction="sum")
 
+    print(f"BCE: {BCE.item()}")
+
     # KL Regularizers (Eq.6-7)
     # R_z: KL(q(z|x) || p(z)) (p(z) = N(0,I))
     KLD_z = -0.5 * torch.sum(1 + logvar_z - mu_z.pow(2) - logvar_z.exp())
