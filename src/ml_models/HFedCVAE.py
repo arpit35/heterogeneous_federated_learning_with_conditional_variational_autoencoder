@@ -1,6 +1,8 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from src.ml_models.decoder import Decoder
 from src.scripts.helper import metadata
 
 cnn_config = {
@@ -47,10 +49,9 @@ cnn_config = {
 }
 
 
-class CNN(nn.Module):
+class HFedCVAE(nn.Module):
     def __init__(self, cnn_type: str):
-        super(CNN, self).__init__()
-
+        super().__init__()
         (
             conv1_filters,
             conv2_filters,
@@ -59,6 +60,13 @@ class CNN(nn.Module):
             fc1_out_features,
             fc2_out_features,
         ) = cnn_config[cnn_type].values()
+
+        self.decoder = Decoder()
+
+        self.cnn_encoder_connector = nn.Linear(
+            in_features=fc1_out_features,
+            out_features=metadata["encoder_input_dim"],
+        )
 
         # Input: 1x32x32
         self.conv1 = nn.Conv2d(
@@ -84,11 +92,55 @@ class CNN(nn.Module):
             fc2_out_features, metadata["num_classes"]
         )  # Output: num_classes
 
-    def forward(self, x):
+        self.mu = nn.Linear(fc2_out_features, metadata["decoder_latent_dim"])
+        self.logvar = nn.Linear(fc2_out_features, metadata["decoder_latent_dim"])
+
+    def reparameterize(self, mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + eps * std
+
+    def combined_loss(
+        self,
+        images,
+        labels,
+        logits,
+        recon_x,
+        mu,
+        logvar,
+    ):
+        width = metadata["image_width"]
+        height = metadata["image_height"]
+
+        # Classification loss
+        classification_loss = F.cross_entropy(logits, labels, reduction="sum")
+
+        # recon_x and x in [0,1]
+        # Reconstruction loss (binary cross entropy) summed over pixels
+        BCE = F.binary_cross_entropy(
+            recon_x.view(-1, width * height),
+            images.view(-1, width * height),
+            reduction="sum",
+        )
+        # KL divergence between q(z|x) and N(0,1)
+        KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+
+        return classification_loss + BCE + KLD, classification_loss, BCE, KLD
+
+    def forward(self, x, y):
         x = F.relu(self.conv1(x))  # → 16x28x28
         x = F.relu(self.conv2(x))  # → 32x24x24
         x = x.view(x.size(0), -1)  # Flatten
         x = F.relu(self.fc1(x))  # → 2000
         x = F.relu(self.fc2(x))  # → 500
-        x = self.fc3(x)  # → num_classes
-        return x
+
+        logits = self.fc3(x)  # → num_classes
+        mu = self.mu(x)
+        logvar = self.logvar(x)
+
+        z = self.reparameterize(mu, logvar)
+
+        # Reconstruction
+        recon_x = self.decoder(z, y)
+
+        return logits, recon_x, mu, logvar

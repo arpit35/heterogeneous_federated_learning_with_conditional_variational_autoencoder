@@ -7,7 +7,7 @@ from flwr_datasets.partitioner import DirichletPartitioner
 from torch.utils.data import DataLoader as TorchDataLoader
 from torchvision import transforms
 
-from src.scripts.helper import metadata, save_metadata
+from src.scripts.helper import save_metadata
 
 
 class DataLoader:
@@ -78,11 +78,9 @@ class DataLoader:
             "image_width": width,
             "image_height": height,
             "num_channels": channels,
-            "encoder_input_dim": width * height * channels,
-            "encoder_hidden_dim": int((width * height * channels) / 2),
-            "generic_encoder_latent_dim": int((width + height + channels) / 2),
-            "personalized_encoder_latent_dim": int((width + height + channels) / 5),
-            "decoder_hidden_dim": int((width * height * channels) / 2),
+            "decoder_latent_dim": int(
+                (width / 8) * (height / 8) * channels
+            ),  # stable defusing uses this formula
         }
 
     def save_datasets_to_disk(

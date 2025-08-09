@@ -6,7 +6,7 @@ from flwr.common import Context
 
 from src.data_loader import DataLoader
 from src.ml_models.cnn import cnn_config
-from src.ml_models.HFedPVA import HFedPVA
+from src.ml_models.HFedCVAE import HFedCVAE
 from src.ml_models.utils import get_weights, set_weights, test, train
 from src.utils.logger import get_logger
 
@@ -28,7 +28,7 @@ class FlowerClient(NumPyClient):
         self.cnn_type = list(cnn_config.keys())[
             int(client_number + 1) % len(cnn_config.keys())
         ]
-        self.net = HFedPVA(cnn_type=self.cnn_type)
+        self.net = HFedCVAE(cnn_type=self.cnn_type)
         self.client_number = client_number
         self.batch_size = batch_size
         self.local_epochs = local_epochs
@@ -49,33 +49,8 @@ class FlowerClient(NumPyClient):
         self.logger = get_logger(f"{__name__}_Client_{client_number}", client_number)
         self.logger.info("Client %s initiated", self.client_number)
 
-    def _set_weights_from_server_to_net(self, current_round, config, parameters):
-        generic_encoder_start = config.get("generic_encoder_start")
-        generic_encoder_end = config.get("generic_encoder_end")
-        personalized_encoder_start = config.get("personalized_encoder_start")
-        personalized_encoder_end = config.get("personalized_encoder_end")
-        decoder_start = config.get("decoder_start")
-        decoder_end = config.get("decoder_end")
-
-        if current_round == 1:
-            os.makedirs(self.client_model_folder_path, exist_ok=True)
-
-            set_weights(
-                self.net.generic_encoder,
-                parameters[generic_encoder_start:generic_encoder_end],
-            )
-
-            set_weights(
-                self.net.personalized_encoder,
-                parameters[personalized_encoder_start:personalized_encoder_end],
-            )
-
-            set_weights(
-                self.net.decoder,
-                parameters[decoder_start:decoder_end],
-            )
-
-        else:
+    def _set_weights_from_disk(self, current_round):
+        if current_round != 1:
             self.net.load_state_dict(
                 torch.load(
                     self.client_model_folder_path + "/model.pth",
@@ -83,26 +58,11 @@ class FlowerClient(NumPyClient):
                 )
             )
 
-            set_weights(
-                self.net.generic_encoder,
-                parameters[generic_encoder_start:generic_encoder_end],
-            )
-
-            set_weights(
-                self.net.personalized_encoder,
-                parameters[personalized_encoder_start:personalized_encoder_end],
-            )
-
-            set_weights(
-                self.net.decoder,
-                parameters[decoder_start:decoder_end],
-            )
-
     def fit(self, parameters, config):
         # Fetching configuration settings from the server for the fit operation (server.configure_fit)
         current_round = config.get("current_round")
 
-        self._set_weights_from_server_to_net(current_round, config, parameters)
+        self._set_weights_from_disk(current_round)
 
         dataloader = DataLoader(
             dataset_input_feature=self.dataset_input_feature,
@@ -132,16 +92,6 @@ class FlowerClient(NumPyClient):
 
         torch.save(self.net.state_dict(), self.client_model_folder_path + "/model.pth")
 
-        generic_encoder_parameters = get_weights(self.net.generic_encoder)
-        personalized_encoder_parameters = get_weights(self.net.personalized_encoder)
-        decoder_parameters = get_weights(self.net.decoder)
-
-        all_weights = (
-            generic_encoder_parameters
-            + personalized_encoder_parameters
-            + decoder_parameters
-        )
-
         return (
             all_weights,
             len(train_dataloader.dataset),
@@ -154,7 +104,7 @@ class FlowerClient(NumPyClient):
         )
         current_round = config.get("current_round")
 
-        self._set_weights_from_server_to_net(current_round, config, parameters)
+        self._set_weights_from_disk(current_round)
 
         dataloader = DataLoader(
             dataset_input_feature=self.dataset_input_feature,
