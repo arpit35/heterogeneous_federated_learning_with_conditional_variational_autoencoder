@@ -20,11 +20,12 @@ clientapp = "src.client_app:app"
 num-of-clients = 5
 learning-rate = 0.001
 fraction-evaluate = 1
-local-epochs = 3
+local-epochs = 5
 batch-size = 128
 data-loader-alpha = 0.1
-num-server-rounds = 1
+num-server-rounds = 100
 prepare-dataset = false
+max-synthetic-data-per-client = 3000
 
 # Paths
 logs-folder-path = "log"

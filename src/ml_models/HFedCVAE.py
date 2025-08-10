@@ -109,25 +109,27 @@ class HFedCVAE(nn.Module):
         mu,
         logvar,
     ):
-        width = metadata["image_width"]
-        height = metadata["image_height"]
-
         # Classification loss
         classification_loss = F.cross_entropy(logits, labels, reduction="sum")
 
-        # recon_x and x in [0,1]
-        # Reconstruction loss (binary cross entropy) summed over pixels
-        BCE = F.binary_cross_entropy(
-            recon_x.view(-1, width * height),
-            images.view(-1, width * height),
-            reduction="sum",
-        )
-        # KL divergence between q(z|x) and N(0,1)
-        KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        if recon_x is not None:
+            width = metadata["image_width"]
+            height = metadata["image_height"]
+            # recon_x and x in [0,1]
+            # Reconstruction loss (binary cross entropy) summed over pixels
+            BCE = F.binary_cross_entropy(
+                recon_x.view(-1, width * height),
+                images.view(-1, width * height),
+                reduction="sum",
+            )
+            # KL divergence between q(z|x) and N(0,1)
+            KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
-        return classification_loss + BCE + KLD, classification_loss, BCE, KLD
+            return classification_loss + BCE + KLD, classification_loss, BCE, KLD
+        else:
+            return classification_loss, classification_loss, None, None
 
-    def forward(self, x, y):
+    def forward(self, x, y, detach_decoder=False):
         x = F.relu(self.conv1(x))  # → 16x28x28
         x = F.relu(self.conv2(x))  # → 32x24x24
         x = x.view(x.size(0), -1)  # Flatten
@@ -135,12 +137,17 @@ class HFedCVAE(nn.Module):
         x = F.relu(self.fc2(x))  # → 500
 
         logits = self.fc3(x)  # → num_classes
-        mu = self.mu(x)
-        logvar = self.logvar(x)
 
-        z = self.reparameterize(mu, logvar)
-
-        # Reconstruction
-        recon_x = self.decoder(z, y)
+        if detach_decoder:
+            # Skip decoder forward pass and return None for recon_x
+            recon_x = None
+            mu = None
+            logvar = None
+        else:
+            mu = self.mu(x)
+            logvar = self.logvar(x)
+            z = self.reparameterize(mu, logvar)
+            # Reconstruction
+            recon_x = self.decoder(z, y)
 
         return logits, recon_x, mu, logvar

@@ -7,5 +7,6 @@
     "generic_encoder_latent_dim": 28,
     "personalized_encoder_latent_dim": 11,
     "decoder_hidden_dim": 392,
-    "encoder_input_dim": 784
+    "encoder_input_dim": 784,
+    "decoder_latent_dim": 12
 }

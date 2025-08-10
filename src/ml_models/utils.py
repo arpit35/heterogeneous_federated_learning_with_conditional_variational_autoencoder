@@ -15,7 +15,7 @@ def set_weights(net, parameters):
     net.load_state_dict(state_dict, strict=True)
 
 
-def to_onehot(labels, num_classes, device="cpu"):
+def to_onehot(labels, num_classes, device):
     onehot = torch.zeros(labels.size(0), num_classes, device=device)
     onehot.scatter_(1, labels.view(-1, 1), 1)
     return onehot
@@ -30,6 +30,7 @@ def train(
     device,
     dataset_input_feature,
     dataset_target_feature,
+    detach_decoder=False,
 ):
     """Train the model on the training set."""
     net.to(device)  # move model to GPU if available
@@ -45,8 +46,7 @@ def train(
 
             optimizer.zero_grad()
 
-            logits, recon_x, mu, logvar = net(images, y_onehot)
-            # y_logits, recon_x, mu_z, logvar_z, mu_c, logvar_c = net(images)
+            logits, recon_x, mu, logvar = net(images, y_onehot, detach_decoder)
 
             # Calculate loss
             combined_loss, _, _, _ = net.combined_loss(
@@ -67,6 +67,7 @@ def train(
         device,
         dataset_input_feature,
         dataset_target_feature,
+        detach_decoder,
     )
 
     results = {
@@ -79,7 +80,14 @@ def train(
     return results
 
 
-def test(net, testloader, device, dataset_input_feature, dataset_target_feature):
+def test(
+    net,
+    testloader,
+    device,
+    dataset_input_feature,
+    dataset_target_feature,
+    detach_decoder=False,
+):
     """Validate the model on the test set."""
     net.to(device)
     net.eval()
@@ -94,7 +102,7 @@ def test(net, testloader, device, dataset_input_feature, dataset_target_feature)
                 labels, num_classes=metadata["num_classes"], device=device
             )
 
-            logits, recon_x, mu, logvar = net(images, y_onehot)
+            logits, recon_x, mu, logvar = net(images, y_onehot, detach_decoder)
 
             combined_loss, classification_loss, BCE, KLD = net.combined_loss(
                 images,
@@ -109,7 +117,9 @@ def test(net, testloader, device, dataset_input_feature, dataset_target_feature)
     accuracy = correct / testloader_length
     combined_loss = combined_loss.item() / testloader_length
     classification_loss = classification_loss.item() / testloader_length
-    BCE = BCE.item() / testloader_length
-    KLD = KLD.item() / testloader_length
+
+    if not detach_decoder:
+        BCE = BCE.item() / testloader_length
+        KLD = KLD.item() / testloader_length
 
     return combined_loss, accuracy, classification_loss, BCE, KLD
