@@ -1,6 +1,7 @@
 import os
 
 import numpy as np
+import torch
 from datasets import Dataset, load_dataset, load_from_disk
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import DirichletPartitioner
@@ -31,7 +32,7 @@ class DataLoader:
             transformed_images = []
             for img in batch[self.dataset_input_feature]:
                 if isinstance(img, list):
-                    transformed_images.append(np.array(img, dtype=np.float32))
+                    transformed_images.append(torch.tensor(img, dtype=torch.float32))
                 else:
                     transformed_images.append(self.pytorch_transforms(img))
             batch[self.dataset_input_feature] = transformed_images

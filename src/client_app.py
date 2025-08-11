@@ -110,9 +110,7 @@ class FlowerClient(NumPyClient):
                     samples = self.net.decoder(z, y_onehot)  # (B, 1, 28, 28)
 
                     for i in range(batch_count):
-                        synthetic_images.append(
-                            samples[i].cpu().numpy().astype(np.uint8)
-                        )
+                        synthetic_images.append(samples[i].cpu().numpy().round(4))
                         synthetic_labels.append(labels[index])
 
                     remaining -= batch_count
