@@ -63,11 +63,6 @@ class HFedCVAE(nn.Module):
 
         self.decoder = Decoder()
 
-        self.cnn_encoder_connector = nn.Linear(
-            in_features=fc1_out_features,
-            out_features=metadata["encoder_input_dim"],
-        )
-
         # Input: 1x32x32
         self.conv1 = nn.Conv2d(
             in_channels=metadata["num_channels"],

@@ -1,5 +1,5 @@
 from src.data_loader import DataLoader
-from src.scripts.helper import clear_folder_contents
+from src.scripts.helper import clear_folder_contents, clear_metadata
 
 
 def prepare_dataset(
@@ -9,6 +9,9 @@ def prepare_dataset(
 
     if not should_prepare_dataset:
         return
+
+    print("Clearing metadata...")
+    clear_metadata()
 
     print("Preparing dataset...")
 

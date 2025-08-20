@@ -42,4 +42,9 @@ def load_metadata():
     return existing_metadata
 
 
+def clear_metadata():
+    with open(metadata_path, "w", encoding="utf-8") as f:
+        f.write("{}")
+
+
 metadata = load_metadata()
