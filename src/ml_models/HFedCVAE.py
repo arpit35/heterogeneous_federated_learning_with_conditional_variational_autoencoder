@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -87,44 +86,7 @@ class HFedCVAE(nn.Module):
             fc2_out_features, metadata["num_classes"]
         )  # Output: num_classes
 
-        self.mu = nn.Linear(fc2_out_features, metadata["decoder_latent_dim"])
-        self.logvar = nn.Linear(fc2_out_features, metadata["decoder_latent_dim"])
-
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return mu + eps * std
-
-    def combined_loss(
-        self,
-        images,
-        labels,
-        logits,
-        recon_x,
-        mu,
-        logvar,
-    ):
-        # Classification loss
-        classification_loss = F.cross_entropy(logits, labels, reduction="sum")
-
-        if recon_x is not None:
-            width = metadata["image_width"]
-            height = metadata["image_height"]
-            # recon_x and x in [0,1]
-            # Reconstruction loss (binary cross entropy) summed over pixels
-            BCE = F.binary_cross_entropy(
-                recon_x.view(-1, width * height),
-                images.view(-1, width * height),
-                reduction="sum",
-            )
-            # KL divergence between q(z|x) and N(0,1)
-            KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-
-            return classification_loss + BCE + KLD, classification_loss, BCE, KLD
-        else:
-            return classification_loss, classification_loss, None, None
-
-    def forward(self, x, y, detach_decoder=False):
+    def forward(self, x):
         x = F.relu(self.conv1(x))  # → 16x28x28
         x = F.relu(self.conv2(x))  # → 32x24x24
         x = x.view(x.size(0), -1)  # Flatten
@@ -133,16 +95,4 @@ class HFedCVAE(nn.Module):
 
         logits = self.fc3(x)  # → num_classes
 
-        if detach_decoder:
-            # Skip decoder forward pass and return None for recon_x
-            recon_x = None
-            mu = None
-            logvar = None
-        else:
-            mu = self.mu(x)
-            logvar = self.logvar(x)
-            z = self.reparameterize(mu, logvar)
-            # Reconstruction
-            recon_x = self.decoder(z, y)
-
-        return logits, recon_x, mu, logvar
+        return logits, x

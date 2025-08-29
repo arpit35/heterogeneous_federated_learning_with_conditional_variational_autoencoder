@@ -36,3 +36,21 @@ class Decoder(nn.Module):
         z = self.fc(torch.cat([z, y], dim=1))
         z = z.view(-1, 64, self.width_dim, self.height_dim)
         return self.net(z)
+
+
+class DecoderLatentSpace(nn.Module):
+    def __init__(self, in_latent_dim):
+        super().__init__()
+
+        self.mu = nn.Linear(in_latent_dim, metadata["decoder_latent_dim"])
+        self.logvar = nn.Linear(in_latent_dim, metadata["decoder_latent_dim"])
+
+    def reparameterize(self, mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + eps * std
+
+    def forward(self, x):
+        mu = self.mu(x)
+        logvar = self.logvar(x)
+        return self.reparameterize(mu, logvar), mu, logvar
