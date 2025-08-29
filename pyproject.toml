@@ -26,6 +26,8 @@ data-loader-alpha = 0.1
 num-server-rounds = 1
 prepare-dataset = false
 max-synthetic-data-per-client = 3000
+# gan, vae, gan-vae
+generator-mode = "gan"
 
 # Paths
 logs-folder-path = "log"

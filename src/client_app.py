@@ -9,12 +9,16 @@ from PIL import Image
 from src.data_loader import DataLoader
 from src.ml_models.decoder import Decoder, DecoderLatentSpace
 from src.ml_models.HFedCVAE import HFedCVAE, cnn_config
-from src.ml_models.utils import (
+from src.ml_models.train_test_classification import train_classification
+from src.ml_models.train_test_conditional_gan_with_classification import (
+    test_conditional_gan_with_classification,
+    train_conditional_gan_with_classification,
+)
+from src.ml_models.train_test_conditional_vae_with_classification import (
     test_conditional_vae_with_classification,
-    to_onehot,
-    train_classification,
     train_conditional_vae_with_classification,
 )
+from src.ml_models.utils import to_onehot
 from src.scripts.helper import metadata
 from src.utils.logger import get_logger
 
@@ -32,16 +36,9 @@ class FlowerClient(NumPyClient):
         dataset_input_feature,
         dataset_target_feature,
         max_synthetic_data_per_client,
+        generator_mode,
     ):
         super().__init__()
-        self.cnn_type = list(cnn_config.keys())[
-            int(client_number + 1) % len(cnn_config.keys())
-        ]
-        self.net = HFedCVAE(cnn_type=self.cnn_type)
-        self.decoderLatentSpace = DecoderLatentSpace(
-            in_latent_dim=cnn_config[self.cnn_type]["fc2_out_features"]
-        )
-        self.decoder = Decoder()
         self.client_number = client_number
         self.batch_size = batch_size
         self.local_epochs = local_epochs
@@ -56,6 +53,17 @@ class FlowerClient(NumPyClient):
         self.dataset_input_feature = dataset_input_feature
         self.dataset_target_feature = dataset_target_feature
         self.max_synthetic_data_per_client = max_synthetic_data_per_client
+        self.generator_mode = generator_mode
+
+        self.cnn_type = list(cnn_config.keys())[
+            int(client_number + 1) % len(cnn_config.keys())
+        ]
+        self.net = HFedCVAE(cnn_type=self.cnn_type)
+        if self.generator_mode == "vae":
+            self.decoderLatentSpace = DecoderLatentSpace(
+                in_latent_dim=cnn_config[self.cnn_type]["fc2_out_features"]
+            )
+        self.decoder = Decoder()
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -70,12 +78,13 @@ class FlowerClient(NumPyClient):
                 map_location="cpu",
             )
         )
-        self.decoderLatentSpace.load_state_dict(
-            torch.load(
-                self.client_model_folder_path + "/decoder_latent_space.pth",
-                map_location="cpu",
+        if self.generator_mode == "vae":
+            self.decoderLatentSpace.load_state_dict(
+                torch.load(
+                    self.client_model_folder_path + "/decoder_latent_space.pth",
+                    map_location="cpu",
+                )
             )
-        )
         self.decoder.load_state_dict(
             torch.load(
                 self.client_model_folder_path + "/decoder.pth",
@@ -236,18 +245,35 @@ class FlowerClient(NumPyClient):
             self.batch_size,
         )
 
-        train_results = train_conditional_vae_with_classification(
-            net=self.net,
-            trainloader=train_dataloader,
-            testloader=val_dataloader,
-            epochs=self.local_epochs,
-            learning_rate=self.learning_rate,
-            device=self.device,
-            dataset_input_feature=self.dataset_input_feature,
-            dataset_target_feature=self.dataset_target_feature,
-            decoderLatentSpace=self.decoderLatentSpace,
-            decoder=self.decoder,
-        )
+        if self.generator_mode == "gan":
+            train_results = train_conditional_gan_with_classification(
+                net=self.net,
+                trainloader=train_dataloader,
+                testloader=val_dataloader,
+                epochs=self.local_epochs,
+                learning_rate=self.learning_rate,
+                device=self.device,
+                dataset_input_feature=self.dataset_input_feature,
+                dataset_target_feature=self.dataset_target_feature,
+                decoder=self.decoder,
+            )
+        elif self.generator_mode == "vae":
+            train_results = train_conditional_vae_with_classification(
+                net=self.net,
+                trainloader=train_dataloader,
+                testloader=val_dataloader,
+                epochs=self.local_epochs,
+                learning_rate=self.learning_rate,
+                device=self.device,
+                dataset_input_feature=self.dataset_input_feature,
+                dataset_target_feature=self.dataset_target_feature,
+                decoderLatentSpace=self.decoderLatentSpace,
+                decoder=self.decoder,
+            )
+        if train_results is None:
+            train_results = {}
+
+        train_results.update({"client_number": self.client_number})
 
         self.logger.info("train_results %s", train_results)
 
@@ -303,10 +329,11 @@ class FlowerClient(NumPyClient):
             )
 
         torch.save(self.net.state_dict(), self.client_model_folder_path + "/model.pth")
-        torch.save(
-            self.decoderLatentSpace.state_dict(),
-            self.client_model_folder_path + "/decoder_latent_space.pth",
-        )
+        if self.generator_mode == "vae":
+            torch.save(
+                self.decoderLatentSpace.state_dict(),
+                self.client_model_folder_path + "/decoder_latent_space.pth",
+            )
         torch.save(
             self.decoder.state_dict(), self.client_model_folder_path + "/decoder.pth"
         )
@@ -332,8 +359,17 @@ class FlowerClient(NumPyClient):
             self.dataset_folder_path, self.batch_size
         )
 
-        combined_loss, accuracy, classification_loss, BCE, KLD = (
-            test_conditional_vae_with_classification(
+        if self.generator_mode == "gan":
+            evaluate_results = test_conditional_gan_with_classification(
+                net=self.net,
+                decoder=self.decoder,
+                testloader=test_dataloader,
+                device=self.device,
+                dataset_input_feature=self.dataset_input_feature,
+                dataset_target_feature=self.dataset_target_feature,
+            )
+        elif self.generator_mode == "vae":
+            evaluate_results = test_conditional_vae_with_classification(
                 net=self.net,
                 decoderLatentSpace=self.decoderLatentSpace,
                 decoder=self.decoder,
@@ -342,21 +378,15 @@ class FlowerClient(NumPyClient):
                 dataset_input_feature=self.dataset_input_feature,
                 dataset_target_feature=self.dataset_target_feature,
             )
-        )
 
-        evaluate_results = {
-            "client_number": self.client_number,
-            "combined_loss": combined_loss,
-            "accuracy": accuracy,
-            "classification_loss": classification_loss,
-            "BCE": BCE,
-            "KLD": KLD,
-        }
+        if evaluate_results is None:
+            evaluate_results = {}
 
+        evaluate_results.update({"client_number": self.client_number})
         self.logger.info("evaluate_results %s", evaluate_results)
 
         return (
-            classification_loss,
+            evaluate_results["classification_loss"],
             len(test_dataloader.dataset),
             evaluate_results,
         )
@@ -375,6 +405,7 @@ def client_fn(context: Context):
     max_synthetic_data_per_client = context.run_config.get(
         "max-synthetic-data-per-client"
     )
+    generator_mode = context.run_config.get("generator-mode")
 
     # Return Client instance
     return FlowerClient(
@@ -387,6 +418,7 @@ def client_fn(context: Context):
         dataset_input_feature,
         dataset_target_feature,
         max_synthetic_data_per_client,
+        generator_mode,
     ).to_client()
 
 
