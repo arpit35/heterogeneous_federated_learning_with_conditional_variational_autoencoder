@@ -114,8 +114,6 @@ class CustomFedAvg(FedAvg):
                     client_data[array_idx] for client_data in all_client_data
                 ]
 
-                print("array_idx", array_idx, len(arrays_at_position))
-
                 concatenated_array = np.concatenate(arrays_at_position, axis=0)
                 aggregated_ndarrays.append(concatenated_array)
 

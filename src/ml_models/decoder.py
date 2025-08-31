@@ -54,3 +54,12 @@ class DecoderLatentSpace(nn.Module):
         mu = self.mu(x)
         logvar = self.logvar(x)
         return self.reparameterize(mu, logvar), mu, logvar
+
+
+class Discriminator(nn.Module):
+    def __init__(self, in_latent_dim):
+        super().__init__()
+        self.fc = nn.Linear(in_latent_dim, 1)
+
+    def forward(self, x):
+        return self.fc(x)

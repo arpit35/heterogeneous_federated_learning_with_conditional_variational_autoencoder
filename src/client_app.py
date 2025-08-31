@@ -7,7 +7,7 @@ from flwr.common import Context
 from PIL import Image
 
 from src.data_loader import DataLoader
-from src.ml_models.decoder import Decoder, DecoderLatentSpace
+from src.ml_models.decoder import Decoder, DecoderLatentSpace, Discriminator
 from src.ml_models.HFedCVAE import HFedCVAE, cnn_config
 from src.ml_models.train_test_classification import train_classification
 from src.ml_models.train_test_conditional_gan_with_classification import (
@@ -63,6 +63,10 @@ class FlowerClient(NumPyClient):
             self.decoderLatentSpace = DecoderLatentSpace(
                 in_latent_dim=cnn_config[self.cnn_type]["fc2_out_features"]
             )
+        elif self.generator_mode == "gan":
+            self.discriminator = Discriminator(
+                in_latent_dim=cnn_config[self.cnn_type]["fc2_out_features"]
+            )
         self.decoder = Decoder()
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -82,6 +86,13 @@ class FlowerClient(NumPyClient):
             self.decoderLatentSpace.load_state_dict(
                 torch.load(
                     self.client_model_folder_path + "/decoder_latent_space.pth",
+                    map_location="cpu",
+                )
+            )
+        elif self.generator_mode == "gan":
+            self.discriminator.load_state_dict(
+                torch.load(
+                    self.client_model_folder_path + "/discriminator.pth",
                     map_location="cpu",
                 )
             )
@@ -182,7 +193,7 @@ class FlowerClient(NumPyClient):
                                 )
 
                                 # Create PIL Image and save
-                                pil_image = Image.fromarray(image_2d, mode="L")
+                                pil_image = Image.fromarray(image_2d)
                                 filename = f"client_{self.client_number}_class_{labels[index]}_sample_{image_counter:06d}.png"
                                 filepath = os.path.join(class_dir, filename)
                                 pil_image.save(filepath)
@@ -255,6 +266,7 @@ class FlowerClient(NumPyClient):
                 device=self.device,
                 dataset_input_feature=self.dataset_input_feature,
                 dataset_target_feature=self.dataset_target_feature,
+                discriminator=self.discriminator,
                 decoder=self.decoder,
             )
         elif self.generator_mode == "vae":
@@ -334,6 +346,11 @@ class FlowerClient(NumPyClient):
                 self.decoderLatentSpace.state_dict(),
                 self.client_model_folder_path + "/decoder_latent_space.pth",
             )
+        elif self.generator_mode == "gan":
+            torch.save(
+                self.discriminator.state_dict(),
+                self.client_model_folder_path + "/discriminator.pth",
+            )
         torch.save(
             self.decoder.state_dict(), self.client_model_folder_path + "/decoder.pth"
         )
@@ -362,6 +379,7 @@ class FlowerClient(NumPyClient):
         if self.generator_mode == "gan":
             evaluate_results = test_conditional_gan_with_classification(
                 net=self.net,
+                discriminator=self.discriminator,
                 decoder=self.decoder,
                 testloader=test_dataloader,
                 device=self.device,

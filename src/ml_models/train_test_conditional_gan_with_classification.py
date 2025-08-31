@@ -14,20 +14,26 @@ def train_conditional_gan_with_classification(
     device,
     dataset_input_feature,
     dataset_target_feature,
+    discriminator,
     decoder,
 ):
     """Train the model on the training set."""
     net.to(device)
     decoder.to(device)
+    discriminator.to(device)
 
     net_optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate)
     decoder_optimizer = torch.optim.Adam(decoder.parameters(), lr=learning_rate)
+    discriminator_optimizer = torch.optim.Adam(
+        discriminator.parameters(), lr=learning_rate
+    )
 
     net.train()
     for _ in range(epochs):
         for batch in trainloader:
             net_optimizer.zero_grad()
             decoder_optimizer.zero_grad()
+            discriminator_optimizer.zero_grad()
 
             images = batch[dataset_input_feature].to(device)
             labels = batch[dataset_target_feature].to(device)
@@ -37,38 +43,55 @@ def train_conditional_gan_with_classification(
             decoder_latent_z = torch.randn(
                 labels.size(0), metadata["decoder_latent_dim"], device=device
             )
+            batch_size = images.size(0)
 
             # ---------------------
             #  Train Discriminator
             # ---------------------
 
             # Real images
-            x_pred, _ = net(images)
+            valid = torch.ones(batch_size, 1, device=device)
+            x_pred, in_discriminator = net(images)
+            real_discriminator_pred = discriminator(in_discriminator)
             classification_loss = F.cross_entropy(x_pred, labels)
+            real_discriminator_loss = F.cross_entropy(real_discriminator_pred, valid)
 
             # gen images
+            fake = torch.zeros(batch_size, 1, device=device)
             gen_x = decoder(decoder_latent_z, y_onehot)
-            gen_x_pred, _ = net(gen_x.detach())
-            gen_x_loss = -F.cross_entropy(gen_x_pred, labels)
+            gen_x_pred, in_discriminator = net(gen_x.detach())
+            fake_discriminator_pred = discriminator(in_discriminator)
+            gen_x_loss = F.cross_entropy(gen_x_pred, labels)
+            fake_discriminator_loss = F.cross_entropy(fake_discriminator_pred, fake)
 
             # Total discriminator loss
-            d_loss = (classification_loss + gen_x_loss) / 2
+            d_loss = (
+                classification_loss
+                + gen_x_loss
+                + real_discriminator_loss
+                + fake_discriminator_loss
+            ) / 4
             d_loss.backward()
+            discriminator_optimizer.step()
             net_optimizer.step()
 
             # -----------------
             #  Train Generator
             # -----------------
 
-            gen_x_pred, _ = net(gen_x)
+            gen_x_pred, in_discriminator = net(gen_x)
+            fake_discriminator_pred = discriminator(in_discriminator)
             gen_x_loss = F.cross_entropy(gen_x_pred, labels)
+            fake_discriminator_loss = F.cross_entropy(fake_discriminator_pred, valid)
 
             # generator loss
-            gen_x_loss.backward()
+            g_loss = (gen_x_loss + fake_discriminator_loss) / 2
+            g_loss.backward()
             decoder_optimizer.step()
 
     return test_conditional_gan_with_classification(
         net,
+        discriminator,
         decoder,
         testloader,
         device,
@@ -79,6 +102,7 @@ def train_conditional_gan_with_classification(
 
 def test_conditional_gan_with_classification(
     net,
+    discriminator,
     decoder,
     testloader,
     device,
@@ -87,9 +111,11 @@ def test_conditional_gan_with_classification(
 ):
     """Validate the model on the test set."""
     net.to(device)
+    discriminator.to(device)
     decoder.to(device)
 
     net.eval()
+    discriminator.eval()
     decoder.eval()
 
     correct = 0
@@ -108,23 +134,53 @@ def test_conditional_gan_with_classification(
             decoder_latent_z = torch.randn(
                 labels.size(0), metadata["decoder_latent_dim"], device=device
             )
+            batch_size = images.size(0)
+
+            # ---------------------
+            #  Train Discriminator
+            # ---------------------
 
             # Real images
-            x_pred, _ = net(images)
+            valid = torch.ones(batch_size, 1, device=device)
+            x_pred, in_discriminator = net(images)
+            real_discriminator_pred = discriminator(in_discriminator)
             classification_loss = F.cross_entropy(x_pred, labels)
+            real_discriminator_loss = F.cross_entropy(real_discriminator_pred, valid)
 
             # gen images
+            fake = torch.zeros(batch_size, 1, device=device)
             gen_x = decoder(decoder_latent_z, y_onehot)
-            gen_x_pred, _ = net(gen_x)
-            gen_x_discriminator_loss = -F.cross_entropy(gen_x_pred, labels)
-            gen_x_generator_loss = F.cross_entropy(gen_x_pred, labels)
+            gen_x_pred, in_discriminator = net(gen_x.detach())
+            fake_discriminator_pred = discriminator(in_discriminator)
+            gen_x_loss = F.cross_entropy(gen_x_pred, labels)
+            fake_discriminator_loss = F.cross_entropy(fake_discriminator_pred, fake)
+
+            # Total discriminator loss
+            d_loss = (
+                classification_loss
+                + gen_x_loss
+                + real_discriminator_loss
+                + fake_discriminator_loss
+            ) / 4
+
+            # -----------------
+            #  Train Generator
+            # -----------------
+
+            gen_x_pred, in_discriminator = net(gen_x)
+            fake_discriminator_pred = discriminator(in_discriminator)
+            gen_x_loss = F.cross_entropy(gen_x_pred, labels)
+            fake_discriminator_loss = F.cross_entropy(fake_discriminator_pred, valid)
+
+            # generator loss
+            g_loss = (gen_x_loss + fake_discriminator_loss) / 2
 
             correct += (torch.max(x_pred, 1)[1] == labels).sum().item()
 
             # Accumulate losses
             total_classification_loss += classification_loss.item()
-            total_gen_x_discriminator_loss += gen_x_discriminator_loss.item()
-            total_gen_x_generator_loss += gen_x_generator_loss.item()
+            total_gen_x_discriminator_loss += d_loss.item()
+            total_gen_x_generator_loss += g_loss.item()
 
     # Calculate average losses
     avg_classification_loss = total_classification_loss / testloader_length

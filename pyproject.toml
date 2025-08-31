@@ -23,7 +23,7 @@ fraction-evaluate = 1
 local-epochs = 3
 batch-size = 128
 data-loader-alpha = 0.1
-num-server-rounds = 1
+num-server-rounds = 20
 prepare-dataset = false
 max-synthetic-data-per-client = 3000
 # gan, vae, gan-vae
