@@ -66,11 +66,10 @@ def train_conditional_gan_with_classification(
 
             # Total discriminator loss
             d_loss = (
-                classification_loss
-                + gen_x_loss
+                ((classification_loss + gen_x_loss) / 2)
                 + real_discriminator_loss
                 + fake_discriminator_loss
-            ) / 4
+            ) / 3
             d_loss.backward()
             discriminator_optimizer.step()
             net_optimizer.step()
@@ -157,11 +156,10 @@ def test_conditional_gan_with_classification(
 
             # Total discriminator loss
             d_loss = (
-                classification_loss
-                + gen_x_loss
+                ((classification_loss + gen_x_loss) / 2)
                 + real_discriminator_loss
                 + fake_discriminator_loss
-            ) / 4
+            ) / 3
 
             # -----------------
             #  Train Generator
