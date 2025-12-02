@@ -1,65 +1,52 @@
+import numpy as np
 import torch
 import torch.nn as nn
 
-from src.scripts.helper import metadata
-
-# Output size calculation: (input_size - 1) × stride - 2 × padding + kernel_size + output_padding = input_size*2 + output_padding
+from src.ml_models.residual import ResidualStack
 
 
 class Decoder(nn.Module):
-    def __init__(self):
-        super().__init__()
+    """
+    This is the p_phi (x|z) network. Given a latent sample z p_phi
+    maps back to the original space z -> x.
 
-        self.width_dim = int(metadata["image_width"] / 4)
-        self.height_dim = int(metadata["image_height"] / 4)
+    Inputs:
+    - in_dim : the input dimension
+    - h_dim : the hidden layer dimension
+    - res_h_dim : the hidden dimension of the residual block
+    - n_res_layers : number of layers to stack
 
-        self.fc = nn.Linear(
-            metadata["decoder_latent_dim"] + metadata["num_classes"],
-            64 * self.width_dim * self.height_dim,
-        )
+    """
 
-        self.net = nn.Sequential(
-            nn.ConvTranspose2d(64, 32, 4, 2, 1),
+    def __init__(self, in_dim, h_dim, n_res_layers, res_h_dim):
+        super(Decoder, self).__init__()
+        kernel = 4
+        stride = 2
+
+        self.inverse_conv_stack = nn.Sequential(
+            nn.ConvTranspose2d(
+                in_dim, h_dim, kernel_size=kernel - 1, stride=stride - 1, padding=1
+            ),
+            ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers),
+            nn.ConvTranspose2d(
+                h_dim, h_dim // 2, kernel_size=kernel, stride=stride, padding=1
+            ),
             nn.ReLU(),
             nn.ConvTranspose2d(
-                32,
-                metadata["num_channels"],
-                4,
-                2,
-                1,
-                metadata["image_width"] - (self.width_dim * 4),
+                h_dim // 2, 3, kernel_size=kernel, stride=stride, padding=1
             ),
-            nn.Sigmoid(),
         )
 
-    def forward(self, z, y):
-        z = self.fc(torch.cat([z, y], dim=1))
-        z = z.view(-1, 64, self.width_dim, self.height_dim)
-        return self.net(z)
-
-
-class DecoderLatentSpace(nn.Module):
-    def __init__(self, in_latent_dim):
-        super().__init__()
-
-        self.mu = nn.Linear(in_latent_dim, metadata["decoder_latent_dim"])
-        self.logvar = nn.Linear(in_latent_dim, metadata["decoder_latent_dim"])
-
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return mu + eps * std
-
     def forward(self, x):
-        mu = self.mu(x)
-        logvar = self.logvar(x)
-        return self.reparameterize(mu, logvar), mu, logvar
+        return self.inverse_conv_stack(x)
 
 
-class Discriminator(nn.Module):
-    def __init__(self, in_latent_dim):
-        super().__init__()
-        self.fc = nn.Linear(in_latent_dim, 1)
+if __name__ == "__main__":
+    # random data
+    x = np.random.random_sample((3, 40, 40, 200))
+    x = torch.tensor(x).float()
 
-    def forward(self, x):
-        return self.fc(x)
+    # test decoder
+    decoder = Decoder(40, 128, 3, 64)
+    decoder_out = decoder(x)
+    print("Dncoder out shape:", decoder_out.shape)

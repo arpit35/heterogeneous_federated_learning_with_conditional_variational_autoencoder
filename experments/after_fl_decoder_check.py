@@ -13,7 +13,7 @@ from torchvision import transforms
 # Add the root directory to the path to import the model
 root_dir = os.path.join(os.path.dirname(__file__), "..")
 sys.path.append(root_dir)
-from src.ml_models.HFedCVAE import HFedCVAE
+from ml_models.cnn import CNN
 
 
 class HuggingFaceDatasetWrapper(Dataset):
@@ -76,7 +76,7 @@ class ImageProcessor:
             for cnn_type in cnn_types:
                 try:
                     print(f"Trying to load model with {cnn_type} configuration...")
-                    model = HFedCVAE(cnn_type=cnn_type)
+                    model = CNN(cnn_type=cnn_type)
 
                     # Load the trained weights
                     state_dict = torch.load(self.model_path, map_location="cpu")

@@ -1,7 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.ml_models.decoder import Decoder
 from src.scripts.helper import metadata
 
 cnn_config = {
@@ -48,7 +47,7 @@ cnn_config = {
 }
 
 
-class HFedCVAE(nn.Module):
+class CNN(nn.Module):
     def __init__(self, cnn_type: str):
         super().__init__()
         (
@@ -59,8 +58,6 @@ class HFedCVAE(nn.Module):
             fc1_out_features,
             fc2_out_features,
         ) = cnn_config[cnn_type].values()
-
-        self.decoder = Decoder()
 
         # Input: 1x32x32
         self.conv1 = nn.Conv2d(

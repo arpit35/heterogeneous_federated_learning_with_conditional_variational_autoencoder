@@ -90,38 +90,9 @@ class CustomFedAvg(FedAvg):
         return [(client, evaluate_ins) for client in clients]
 
     def aggregate_fit(self, server_round, results, failures):
-        if not results:
-            return None, {}
-        # Do not aggregate if there are failures and failures are not accepted
-        if not self.accept_failures and failures:
-            return None, {}
-
-        # Collect data from all clients
-        all_client_data = []
-
         for _, fit_res in results:
             print("fit_res.metrics", fit_res.metrics)
-            synthetic_data = parameters_to_ndarrays(fit_res.parameters)
-            all_client_data.append(synthetic_data)
-
-        if all_client_data:
-            num_arrays = len(all_client_data[0])
-
-            aggregated_ndarrays = []
-
-            for array_idx in range(num_arrays):
-                arrays_at_position = [
-                    client_data[array_idx] for client_data in all_client_data
-                ]
-
-                concatenated_array = np.concatenate(arrays_at_position, axis=0)
-                aggregated_ndarrays.append(concatenated_array)
-
-            parameters_aggregated = ndarrays_to_parameters(aggregated_ndarrays)
-
-            return parameters_aggregated, {}
-
-        return None, {}
+        return super().aggregate_fit(server_round, results, failures)
 
     def aggregate_evaluate(self, server_round, results, failures):
 

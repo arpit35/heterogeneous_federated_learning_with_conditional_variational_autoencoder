@@ -77,15 +77,27 @@ class DataLoader:
 
         num_classes = len(set(all_labels))
 
+        base_resolution = 32 * 32
+        scale = (height * width) / base_resolution
+        h_dim = int(128 * scale**0.5)
+        res_h_dim = int(32 * scale**0.5)
+        n_res_layers = max(int(2 * scale**0.5), 1)
+        n_embeddings = int(512 * scale**0.5)
+        embedding_dim = int(64 * scale**0.5)
+        n_pixel_cnn_layers = int(15 * scale**0.5)
+
         # Save metadata
         return {
             "num_classes": num_classes,
             "image_width": width,
             "image_height": height,
             "num_channels": channels,
-            "decoder_latent_dim": int(
-                (width / 8) * (height / 8) * channels
-            ),  # stable defusing uses this formula
+            "h_dim": h_dim,
+            "res_h_dim": res_h_dim,
+            "n_res_layers": n_res_layers,
+            "n_embeddings": n_embeddings,
+            "embedding_dim": embedding_dim,
+            "n_pixel_cnn_layers": n_pixel_cnn_layers,
         }
 
     def save_datasets_to_disk(

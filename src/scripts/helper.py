@@ -11,13 +11,13 @@ def clear_folder_contents(dir_path: str):
     os.makedirs(dir_path)
 
 
-def save_metadata(data: dict):
+def save_metadata(data: dict, path: str = metadata_path):
     try:
-        with open(metadata_path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             existing_metadata = json.load(f)
     except json.JSONDecodeError:
         print(
-            f"Warning: Existing metadata file at {metadata_path} is invalid JSON. It will be replaced."
+            f"Warning: Existing metadata file at {path} is invalid JSON. It will be replaced."
         )
         existing_metadata = {}
 
@@ -29,14 +29,14 @@ def save_metadata(data: dict):
         json.dump(merged_metadata, f, indent=4)
 
 
-def load_metadata():
+def load_metadata(path: str = metadata_path) -> dict:
     existing_metadata = {}
     try:
-        with open(metadata_path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             existing_metadata = json.load(f)
     except json.JSONDecodeError:
         print(
-            f"Warning: Existing metadata file at {metadata_path} is invalid JSON. It will be replaced."
+            f"Warning: Existing metadata file at {path} is invalid JSON. It will be replaced."
         )
 
     return existing_metadata
