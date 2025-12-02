@@ -15,9 +15,9 @@ def save_metadata(data: dict, path: str = metadata_path):
     try:
         with open(path, "r", encoding="utf-8") as f:
             existing_metadata = json.load(f)
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, FileNotFoundError):
         print(
-            f"Warning: Existing metadata file at {path} is invalid JSON. It will be replaced."
+            f"Warning: Existing metadata file at {path} not found or invalid JSON. It will be created."
         )
         existing_metadata = {}
 
@@ -25,7 +25,7 @@ def save_metadata(data: dict, path: str = metadata_path):
     merged_metadata = {**existing_metadata, **data}
 
     # Save merged metadata
-    with open(metadata_path, "w", encoding="utf-8") as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(merged_metadata, f, indent=4)
 
 
@@ -42,8 +42,8 @@ def load_metadata(path: str = metadata_path) -> dict:
     return existing_metadata
 
 
-def clear_metadata():
-    with open(metadata_path, "w", encoding="utf-8") as f:
+def clear_metadata(path: str = metadata_path):
+    with open(path, "w", encoding="utf-8") as f:
         f.write("{}")
 
 

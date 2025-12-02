@@ -15,6 +15,10 @@ from flwr.common import (
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from flwr.server.strategy import FedAvg
 
+from src.ml_models.gated_pixelcnn import GatedPixelCNN
+from src.ml_models.utils import get_weights, set_weights
+from src.ml_models.vqvae import VQVAE
+
 
 # Define metric aggregation function
 def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
@@ -38,6 +42,7 @@ class CustomFedAvg(FedAvg):
         num_server_rounds,
         plots_folder_path,
         dataset_name,
+        parameter_indices_config,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -45,6 +50,7 @@ class CustomFedAvg(FedAvg):
         self.num_server_rounds = num_server_rounds
         self.plots_folder_path = plots_folder_path
         self.dataset_name = dataset_name
+        self.parameter_indices_config = parameter_indices_config
         self.client_plot = {}
 
     def configure_fit(self, server_round, parameters, client_manager):
@@ -53,6 +59,7 @@ class CustomFedAvg(FedAvg):
 
         config: dict[str, Scalar] = {
             "current_round": server_round,
+            **self.parameter_indices_config,
         }
 
         print("fit_ins.config", config)
@@ -73,6 +80,7 @@ class CustomFedAvg(FedAvg):
         # Parameters and config
         config: dict[str, Scalar] = {
             "current_round": server_round,
+            **self.parameter_indices_config,
         }
 
         print("fit_ins.config", config)
@@ -129,6 +137,22 @@ def server_fn(context: Context):
     plots_folder_path = context.run_config.get("plots-folder-path")
     dataset_name = context.run_config.get("dataset-name")
 
+    vqvae_parameters = get_weights(VQVAE())
+    pixel_cnn_parameters = get_weights(GatedPixelCNN())
+    all_parameters = vqvae_parameters + pixel_cnn_parameters
+    initial_parameters = ndarrays_to_parameters(all_parameters)
+
+    vqvae_index_start = 0
+    vqvae_index_end = len(vqvae_parameters)
+    pixel_cnn_index_start = vqvae_index_end
+    pixel_cnn_index_end = pixel_cnn_index_start + len(pixel_cnn_parameters)
+    parameter_indices_config = {
+        "vqvae_index_start": vqvae_index_start,
+        "vqvae_index_end": vqvae_index_end,
+        "pixel_cnn_index_start": pixel_cnn_index_start,
+        "pixel_cnn_index_end": pixel_cnn_index_end,
+    }
+
     # Define the strategy
     strategy = CustomFedAvg(
         fraction_evaluate=fraction_evaluate,
@@ -137,6 +161,8 @@ def server_fn(context: Context):
         num_server_rounds=num_server_rounds,
         plots_folder_path=plots_folder_path,
         dataset_name=dataset_name,
+        initial_parameters=initial_parameters,
+        parameter_indices_config=parameter_indices_config,
     )
     config = ServerConfig(num_rounds=int(context.run_config["num-server-rounds"]))
 

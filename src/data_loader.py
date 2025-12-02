@@ -83,7 +83,7 @@ class DataLoader:
         res_h_dim = int(32 * scale**0.5)
         n_res_layers = max(int(2 * scale**0.5), 1)
         n_embeddings = int(512 * scale**0.5)
-        embedding_dim = int(64 * scale**0.5)
+        embedding_dim = int(int(8 * scale**0.5) ** 2)
         n_pixel_cnn_layers = int(15 * scale**0.5)
 
         # Save metadata

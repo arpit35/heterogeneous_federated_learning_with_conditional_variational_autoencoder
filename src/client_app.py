@@ -87,33 +87,20 @@ class FlowerClient(NumPyClient):
 
         return var
 
-    def _handle_weights(self, current_round):
+    def _handle_weights(self):
         vqvae_weights = get_weights(self.vqvae)
         pixel_cnn_weights = get_weights(self.pixel_cnn)
 
-        weights = vqvae_weights + pixel_cnn_weights
-
-        if current_round == 1:
-            weights_vqvae_index_start = 0
-            weights_vqvae_index_end = len(vqvae_weights)
-            weights_pixel_cnn_index_start = weights_vqvae_index_end
-            weights_pixel_cnn_index_end = weights_pixel_cnn_index_start + len(
-                pixel_cnn_weights
-            )
-
-            model_weights_indices = {
-                "weights_vqvae_index_start": weights_vqvae_index_start,
-                "weights_vqvae_index_end": weights_vqvae_index_end,
-                "weights_pixel_cnn_index_start": weights_pixel_cnn_index_start,
-                "weights_pixel_cnn_index_end": weights_pixel_cnn_index_end,
-            }
-            save_metadata(model_weights_indices, self.client_metadata_path)
-
-        return weights
+        return vqvae_weights + pixel_cnn_weights
 
     def fit(self, parameters, config):
         # Fetching configuration settings from the server for the fit operation (server.configure_fit)
         current_round = config.get("current_round")
+        vqvae_index_start = config.get("vqvae_index_start")
+        vqvae_index_end = config.get("vqvae_index_end")
+        pixel_cnn_index_start = config.get("pixel_cnn_index_start")
+        pixel_cnn_index_end = config.get("pixel_cnn_index_end")
+
         self.logger.info("current_round %s", current_round)
 
         dataloader = DataLoader(
@@ -128,7 +115,11 @@ class FlowerClient(NumPyClient):
         )
         x_train_var = self._get_dataset_variance(train_dataloader, current_round)
 
-        set_weights(self.vqvae, parameters)
+        set_weights(self.vqvae, parameters[vqvae_index_start:vqvae_index_end])
+        set_weights(
+            self.pixel_cnn,
+            parameters[pixel_cnn_index_start:pixel_cnn_index_end],
+        )
 
         train_vqvae_with_pixel_cnn_results = train_vqvae_with_pixel_cnn(
             vqvae=self.vqvae,
@@ -147,7 +138,7 @@ class FlowerClient(NumPyClient):
             "train_vqvae_with_pixel_cnn_results %s", train_vqvae_with_pixel_cnn_results
         )
 
-        weights = self._handle_weights(current_round)
+        weights = self._handle_weights()
 
         return (
             weights,
@@ -157,13 +148,17 @@ class FlowerClient(NumPyClient):
 
     def evaluate(self, parameters, config):
         current_round = config.get("current_round")
+        vqvae_index_start = config.get("vqvae_index_start")
+        vqvae_index_end = config.get("vqvae_index_end")
+        pixel_cnn_index_start = config.get("pixel_cnn_index_start")
+        pixel_cnn_index_end = config.get("pixel_cnn_index_end")
 
         self.logger.info("current_round %s", current_round)
 
-        if current_round == 1:
-            os.makedirs(self.client_model_folder_path, exist_ok=True)
-        else:
-            self._set_weights_from_disk()
+        # if current_round == 1:
+        #     os.makedirs(self.client_model_folder_path, exist_ok=True)
+        # else:
+        #     self._set_weights_from_disk()
 
         dataloader = DataLoader(
             dataset_input_feature=self.dataset_input_feature,
@@ -175,19 +170,10 @@ class FlowerClient(NumPyClient):
 
         client_metadata = load_metadata(self.client_metadata_path)
 
-        weights_vqvae_index_start = client_metadata.get("weights_vqvae_index_start")
-        weights_vqvae_index_end = client_metadata.get("weights_vqvae_index_end")
-        weights_pixel_cnn_index_start = client_metadata.get(
-            "weights_pixel_cnn_index_start"
-        )
-        weights_pixel_cnn_index_end = client_metadata.get("weights_pixel_cnn_index_end")
-
-        set_weights(
-            self.vqvae, parameters[weights_vqvae_index_start:weights_vqvae_index_end]
-        )
+        set_weights(self.vqvae, parameters[vqvae_index_start:vqvae_index_end])
         set_weights(
             self.pixel_cnn,
-            parameters[weights_pixel_cnn_index_start:weights_pixel_cnn_index_end],
+            parameters[pixel_cnn_index_start:pixel_cnn_index_end],
         )
 
         # Generate and save images for all 10 classes (10 images per class)

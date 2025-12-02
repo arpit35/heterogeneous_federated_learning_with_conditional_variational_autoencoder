@@ -53,6 +53,10 @@ def generate_and_save_images(
         num_classes: Number of classes (default 10 for CIFAR-10)
         images_per_class: Number of images to generate per class
     """
+    # Ensure models are on the correct device
+    vqvae = vqvae.to(device)
+    pixel_cnn = pixel_cnn.to(device)
+
     vqvae.eval()
     pixel_cnn.eval()
 

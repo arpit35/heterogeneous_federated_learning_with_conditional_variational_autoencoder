@@ -7,6 +7,6 @@
     "res_h_dim": 28,
     "n_res_layers": 1,
     "n_embeddings": 448,
-    "embedding_dim": 56,
+    "embedding_dim": 49,
     "n_pixel_cnn_layers": 13
 }
