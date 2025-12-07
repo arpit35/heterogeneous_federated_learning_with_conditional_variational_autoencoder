@@ -1,5 +1,3 @@
-import numpy as np
-import torch
 import torch.nn as nn
 
 from src.ml_models.residual import ResidualStack
@@ -32,19 +30,9 @@ class Encoder(nn.Module):
             nn.Conv2d(
                 h_dim, h_dim, kernel_size=kernel - 1, stride=stride - 1, padding=1
             ),
+            nn.ReLU(),
             ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers),
         )
 
     def forward(self, x):
         return self.conv_stack(x)
-
-
-if __name__ == "__main__":
-    # random data
-    x = np.random.random_sample((3, 40, 40, 200))
-    x = torch.tensor(x).float()
-
-    # test encoder
-    encoder = Encoder(40, 128, 3, 64)
-    encoder_out = encoder(x)
-    print("Encoder out shape:", encoder_out.shape)

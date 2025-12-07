@@ -4,9 +4,8 @@ import torch.nn as nn
 from src.scripts.helper import metadata
 
 
-def train_vqvae_with_pixel_cnn(
-    vqvae,
-    pixel_cnn,
+def train_vae(
+    vae,
     trainloader,
     epochs,
     device,
@@ -15,16 +14,14 @@ def train_vqvae_with_pixel_cnn(
     x_train_var,
 ):
     """Train VQVAE and PixelCNN sequentially for better convergence."""
-    vqvae.to(device)
-    pixel_cnn.to(device)
+    vae.to(device)
 
-    vqvae_optimizer = torch.optim.Adam(vqvae.parameters())
-    pixel_cnn_optimizer = torch.optim.Adam(pixel_cnn.parameters())
+    vae_optimizer = torch.optim.Adam(vae.parameters())
 
     pixel_cnn_criterion = nn.CrossEntropyLoss()
 
     # Phase 1: Train VQVAE
-    vqvae.train()
+    vae.train()
 
     total_loss = 0
     total_recon_loss = 0

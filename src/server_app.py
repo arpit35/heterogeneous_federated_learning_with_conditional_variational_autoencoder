@@ -17,7 +17,7 @@ from flwr.server.strategy import FedAvg
 
 from src.ml_models.gated_pixelcnn import GatedPixelCNN
 from src.ml_models.utils import get_weights, set_weights
-from src.ml_models.vqvae import VQVAE
+from src.ml_models.vae import VAE
 
 
 # Define metric aggregation function
