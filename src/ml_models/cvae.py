@@ -42,7 +42,7 @@ class CVAE(nn.Module):
         # Decoder input: z + y
         self.fc_expand = nn.Linear(latent_dim + num_classes, self.flatten_dim)
 
-        self.decoder = Decoder(C_enc, h_dim, n_res_layers, res_h_dim)
+        self.decoder = Decoder(C_enc, h_dim, n_res_layers, res_h_dim, input_shape[0])
 
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)

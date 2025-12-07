@@ -6,5 +6,5 @@
     "h_dim": 112,
     "res_h_dim": 28,
     "n_res_layers": 1,
-    "latent_dim": 64
+    "latent_dim": 56
 }

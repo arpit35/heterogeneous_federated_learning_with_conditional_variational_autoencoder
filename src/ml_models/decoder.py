@@ -1,5 +1,3 @@
-import numpy as np
-import torch
 import torch.nn as nn
 
 from src.ml_models.residual import ResidualStack
@@ -18,7 +16,7 @@ class Decoder(nn.Module):
 
     """
 
-    def __init__(self, in_dim, h_dim, n_res_layers, res_h_dim):
+    def __init__(self, in_dim, h_dim, n_res_layers, res_h_dim, out_dim):
         super(Decoder, self).__init__()
         kernel = 4
         stride = 2
@@ -33,7 +31,7 @@ class Decoder(nn.Module):
             ),
             nn.ReLU(),
             nn.ConvTranspose2d(
-                h_dim // 2, 3, kernel_size=kernel, stride=stride, padding=1
+                h_dim // 2, out_dim, kernel_size=kernel, stride=stride, padding=1
             ),
             nn.Sigmoid(),  # Output in [0,1] range
         )

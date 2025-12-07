@@ -1,7 +1,7 @@
 import os
 
 import torch
-from datasets import Dataset
+from datasets import Array3D, ClassLabel, Dataset, Features
 from flwr.client import ClientApp, NumPyClient
 from flwr.common import Context
 from torch.utils.data import DataLoader as TorchDataLoader
@@ -59,6 +59,9 @@ class FlowerClient(NumPyClient):
 
         self.device = get_device()
 
+        self.net_training_starting_round = 1
+        self.cvae_training_starting_round = 2
+
         # Configure logging
         self.logger = get_logger(f"{__name__}_Client_{client_number}", client_number)
         self.logger.info("Client %s initiated", self.client_number)
@@ -73,7 +76,7 @@ class FlowerClient(NumPyClient):
             )
 
     def _get_dataset_variance(self, dataloader, current_round):
-        if current_round == 1:
+        if current_round == self.cvae_training_starting_round:
             dataset = dataloader.dataset
             images = torch.stack(
                 [dataset[i][self.dataset_input_feature] for i in range(len(dataset))]
@@ -93,63 +96,85 @@ class FlowerClient(NumPyClient):
 
     def _create_synthetic_dataloader(self):
         """
-        Memory-efficient synthetic dataloader generator using a CVAE decoder.
-        Generates synthetic samples batch-by-batch and streams into a HuggingFace dataset.
+        Create synthetic dataloader using a CVAE decoder.
+        Returns a proper PyTorch Dataset that can be used with DataLoader.
         """
-
         num_classes = metadata["num_classes"]
 
         self.cvae.eval()
         self.cvae.to(self.device)
 
-        # Total batches per class
-        batches_per_class = (
-            self.samples_per_class + self.batch_size - 1
-        ) // self.batch_size
+        total_samples = self.samples_per_class * num_classes
 
-        def generator():
-            """Stream images batch-by-batch to HuggingFace."""
-            for cls in range(num_classes):
-                for _ in range(batches_per_class):
+        # Create synthetic data in memory (or in batches if memory is constrained)
+        synthetic_data = []
+        synthetic_labels = []
 
-                    # Current batch size (last batch may be smaller)
-                    current_bs = min(self.batch_size, self.samples_per_class)
+        # Generate in batches to be memory efficient
+        batch_size = min(self.batch_size, 64)  # Use smaller batch size for generation
+        for start_idx in range(0, total_samples, batch_size):
+            current_batch_size = min(batch_size, total_samples - start_idx)
 
-                    # One-hot condition vector
-                    y = torch.zeros(current_bs, num_classes, device=self.device)
-                    y[:, cls] = 1
+            # Create labels
+            labels = torch.randint(
+                0, num_classes, (current_batch_size,), device=self.device
+            )
 
-                    # Latent sample
-                    z = torch.randn(
-                        current_bs, metadata["latent_dim"], device=self.device
-                    )
-                    with torch.no_grad():
-                        z_cond = torch.cat([z, y], dim=1)
-                        expanded = self.cvae.fc_expand(z_cond)
-                        expanded = expanded.view(-1, *self.cvae.enc_shape)
-                        images = self.cvae.decoder(expanded).cpu()
+            # One-hot encode
+            y = torch.zeros(current_batch_size, num_classes, device=self.device)
+            y[torch.arange(current_batch_size), labels] = 1
 
-                    # Yield each image + label individually
-                    for img in images:
-                        yield {
-                            self.dataset_input_feature: img,
-                            self.dataset_target_feature: cls,
-                        }
+            # Sample z
+            z = torch.randn(
+                current_batch_size, metadata["latent_dim"], device=self.device
+            )
 
-        # Streaming HF dataset from generator
-        hf_dataset = Dataset.from_generator(
-            generator,
-            features=None,  # Let HF infer tensor types automatically
+            # Decode
+            with torch.no_grad():
+                z_cond = torch.cat([z, y], dim=1)
+                expanded = self.cvae.fc_expand(z_cond)
+                expanded = expanded.view(current_batch_size, *self.cvae.enc_shape)
+                images = self.cvae.decoder(expanded)
+
+            synthetic_data.append(images.cpu())
+            synthetic_labels.append(labels.cpu())
+
+        # Concatenate all batches
+        synthetic_data = torch.cat(synthetic_data, dim=0)
+        synthetic_labels = torch.cat(synthetic_labels, dim=0)
+
+        # Create a proper PyTorch Dataset
+        class SyntheticDataset(torch.utils.data.Dataset):
+            def __init__(self, data, labels, input_feature, target_feature):
+                self.data = data
+                self.labels = labels
+                self.input_feature_name = input_feature
+                self.target_feature_name = target_feature
+
+            def __len__(self):
+                return len(self.data)
+
+            def __getitem__(self, idx):
+                return {
+                    self.input_feature_name: self.data[idx],
+                    self.target_feature_name: self.labels[idx],
+                }
+
+        # Create dataset and dataloader
+        dataset = SyntheticDataset(
+            synthetic_data,
+            synthetic_labels,
+            self.dataset_input_feature,
+            self.dataset_target_feature,
         )
-
-        # Convert to DataLoader
-        loader = TorchDataLoader(
-            hf_dataset,
+        dataloader = TorchDataLoader(
+            dataset,
             batch_size=self.batch_size,
-            shuffle=True,
+            shuffle=True,  # Shuffle for training
+            drop_last=True,  # Drop last incomplete batch
         )
 
-        return loader
+        return dataloader
 
     def fit(self, parameters, config):
         # Fetching configuration settings from the server for the fit operation (server.configure_fit)
@@ -174,7 +199,7 @@ class FlowerClient(NumPyClient):
 
         results = {"client_number": self.client_number}
 
-        if current_round == 1:
+        if current_round == self.net_training_starting_round:
             val_dataloader = dataloader.load_dataset_from_disk(
                 "val_data",
                 self.client_data_folder_path,
@@ -194,7 +219,8 @@ class FlowerClient(NumPyClient):
                     optimizer_strategy="adam",
                 )
             )
-
+            # Save the trained model to disk
+            os.makedirs(self.client_model_folder_path, exist_ok=True)
             torch.save(
                 self.net.state_dict(), self.client_model_folder_path + "/model.pth"
             )
@@ -225,7 +251,7 @@ class FlowerClient(NumPyClient):
         )
 
     def evaluate(self, parameters, config):
-        current_round = config.get("current_round")
+        current_round = config.get("current_round", -1)
         cvae_index_start = config.get("cvae_index_start")
         cvae_index_end = config.get("cvae_index_end")
 
@@ -248,7 +274,7 @@ class FlowerClient(NumPyClient):
 
         loss, acc = 0.0, 0.0
 
-        if current_round != 1:
+        if int(current_round) >= self.cvae_training_starting_round:
             train_dataloader = dataloader.load_dataset_from_disk(
                 "train_data",
                 self.client_data_folder_path,
