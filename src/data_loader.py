@@ -1,8 +1,7 @@
 import os
 
 import numpy as np
-import torch
-from datasets import Dataset, load_dataset, load_from_disk
+from datasets import load_dataset, load_from_disk
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import DirichletPartitioner
 from torch.utils.data import DataLoader as TorchDataLoader
@@ -28,14 +27,9 @@ class DataLoader:
         )
 
     def _apply_transforms(self, batch):
-        if batch.get(self.dataset_input_feature):
-            transformed_images = []
-            for img in batch[self.dataset_input_feature]:
-                if isinstance(img, list):
-                    transformed_images.append(torch.tensor(img, dtype=torch.float32))
-                else:
-                    transformed_images.append(self.pytorch_transforms(img))
-            batch[self.dataset_input_feature] = transformed_images
+        batch[self.dataset_input_feature] = [
+            self.pytorch_transforms(img) for img in batch[self.dataset_input_feature]
+        ]
         return batch
 
     def _load_partition(self, num_clients: int, alpha: float):
@@ -184,19 +178,3 @@ class DataLoader:
         )
 
         return test_loader
-
-    def load_dataset_from_ndarray(self, parameters, batch_size) -> TorchDataLoader:
-        dataset_dict = {
-            self.dataset_input_feature: parameters[0],
-            self.dataset_target_feature: parameters[1].tolist(),
-        }
-
-        hf_dataset = Dataset.from_dict(dataset_dict)
-
-        hf_dataset = hf_dataset.with_transform(self._apply_transforms)
-
-        return TorchDataLoader(
-            hf_dataset,
-            batch_size=batch_size,
-            shuffle=True,
-        )

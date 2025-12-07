@@ -18,12 +18,14 @@ clientapp = "src.client_app:app"
 
 [tool.flwr.app.config]
 num-of-clients = 5
-learning-rate = 0.001
+net-learning-rate = 0.001
 fraction-evaluate = 1
-local-epochs = 3
+net-epochs = 3
+cvae-epochs = 10
 batch-size = 64
 data-loader-alpha = 0.1
 num-server-rounds = 20
+samples-per-class = 3000
 prepare-dataset = false
 
 # Paths

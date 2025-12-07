@@ -15,9 +15,8 @@ from flwr.common import (
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from flwr.server.strategy import FedAvg
 
-from src.ml_models.gated_pixelcnn import GatedPixelCNN
+from src.ml_models.cvae import CVAE
 from src.ml_models.utils import get_weights, set_weights
-from src.ml_models.vae import VAE
 
 
 # Define metric aggregation function
@@ -137,20 +136,14 @@ def server_fn(context: Context):
     plots_folder_path = context.run_config.get("plots-folder-path")
     dataset_name = context.run_config.get("dataset-name")
 
-    vqvae_parameters = get_weights(VQVAE())
-    pixel_cnn_parameters = get_weights(GatedPixelCNN())
-    all_parameters = vqvae_parameters + pixel_cnn_parameters
-    initial_parameters = ndarrays_to_parameters(all_parameters)
+    cvae_parameters = get_weights(CVAE())
+    initial_parameters = ndarrays_to_parameters(cvae_parameters)
 
-    vqvae_index_start = 0
-    vqvae_index_end = len(vqvae_parameters)
-    pixel_cnn_index_start = vqvae_index_end
-    pixel_cnn_index_end = pixel_cnn_index_start + len(pixel_cnn_parameters)
+    cvae_index_start = 0
+    cvae_index_end = len(cvae_parameters)
     parameter_indices_config = {
-        "vqvae_index_start": vqvae_index_start,
-        "vqvae_index_end": vqvae_index_end,
-        "pixel_cnn_index_start": pixel_cnn_index_start,
-        "pixel_cnn_index_end": pixel_cnn_index_end,
+        "cvae_index_start": cvae_index_start,
+        "cvae_index_end": cvae_index_end,
     }
 
     # Define the strategy

@@ -6,9 +6,10 @@ from src.ml_models.encoder import Encoder
 from src.scripts.helper import metadata
 
 
-class VAE(nn.Module):
+class CVAE(nn.Module):
     def __init__(
         self,
+        num_classes=metadata["num_classes"],
         h_dim=metadata["h_dim"],
         res_h_dim=metadata["res_h_dim"],
         n_res_layers=metadata["n_res_layers"],
@@ -21,10 +22,10 @@ class VAE(nn.Module):
     ):
         super().__init__()
 
-        # ----- Build encoder -----
+        # ----- Encoder -----
         self.encoder = Encoder(input_shape[0], h_dim, n_res_layers, res_h_dim)
 
-        # Dummy forward to compute encoder output shape
+        # Compute shape after encoder
         with torch.no_grad():
             dummy = torch.zeros(1, *input_shape)
             enc_out = self.encoder(dummy)
@@ -33,13 +34,14 @@ class VAE(nn.Module):
             self.flatten_dim = C_enc * H_enc * W_enc
 
         # ----- Latent space -----
-        self.fc_mu = nn.Linear(self.flatten_dim, latent_dim)
-        self.fc_logvar = nn.Linear(self.flatten_dim, latent_dim)
+        # Input to FC now includes condition y
+        self.fc_mu = nn.Linear(self.flatten_dim + num_classes, latent_dim)
+        self.fc_logvar = nn.Linear(self.flatten_dim + num_classes, latent_dim)
 
-        # ----- Expansion for decoder -----
-        self.fc_expand = nn.Linear(latent_dim, self.flatten_dim)
+        # ----- Decoder -----
+        # Decoder input: z + y
+        self.fc_expand = nn.Linear(latent_dim + num_classes, self.flatten_dim)
 
-        # decode the discrete latent representation
         self.decoder = Decoder(C_enc, h_dim, n_res_layers, res_h_dim)
 
     def reparameterize(self, mu, logvar):
@@ -47,20 +49,28 @@ class VAE(nn.Module):
         eps = torch.randn_like(std)
         return mu + eps * std
 
-    def forward(self, x):
-
+    def forward(self, x, y):
+        """
+        x : input image batch
+        y : conditioning batch (one-hot or dense), shape [B, num_classes]
+        """
         h = self.encoder(x)
         B = h.size(0)
 
         h = h.flatten(start_dim=1)
 
-        mu = self.fc_mu(h)
-        logvar = self.fc_logvar(h)
+        h_cond = torch.cat([h, y], dim=1)
+
+        mu = self.fc_mu(h_cond)
+        logvar = self.fc_logvar(h_cond)
 
         # Reparameterization trick
         z = self.reparameterize(mu, logvar)
-        z = self.fc_expand(z).view(B, *self.enc_shape)
 
-        x_recon = self.decoder(z)
+        z_cond = torch.cat([z, y], dim=1)
+
+        z_expanded = self.fc_expand(z_cond).view(B, *self.enc_shape)
+
+        x_recon = self.decoder(z_expanded)
 
         return x_recon, mu, logvar

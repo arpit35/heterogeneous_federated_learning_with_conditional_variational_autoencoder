@@ -1,20 +1,18 @@
 import os
 
 import torch
+from datasets import Dataset
 from flwr.client import ClientApp, NumPyClient
 from flwr.common import Context
+from torch.utils.data import DataLoader as TorchDataLoader
 
 from src.data_loader import DataLoader
 from src.ml_models.cnn import CNN, cnn_config
-from src.ml_models.train_vae import train_vae
-from src.ml_models.utils import (
-    generate_and_save_images,
-    get_device,
-    get_weights,
-    set_weights,
-)
-from src.ml_models.vae import VAE
-from src.scripts.helper import load_metadata, save_metadata
+from src.ml_models.cvae import CVAE
+from src.ml_models.train_cvae import train_cvae
+from src.ml_models.train_net import test_net, train_net
+from src.ml_models.utils import get_device, get_weights, set_weights
+from src.scripts.helper import load_metadata, metadata, save_metadata
 from src.utils.logger import get_logger
 
 
@@ -24,18 +22,21 @@ class FlowerClient(NumPyClient):
         self,
         client_number,
         batch_size,
-        local_epochs,
-        learning_rate,
+        net_epochs,
+        cvae_epochs,
+        net_learning_rate,
         dataset_folder_path,
         model_folder_path,
         dataset_input_feature,
         dataset_target_feature,
+        samples_per_class,
     ):
         super().__init__()
         self.client_number = client_number
         self.batch_size = batch_size
-        self.local_epochs = local_epochs
-        self.learning_rate = learning_rate
+        self.net_epochs = net_epochs
+        self.cvae_epochs = cvae_epochs
+        self.net_learning_rate = net_learning_rate
         self.dataset_folder_path = dataset_folder_path
         self.client_data_folder_path = os.path.join(
             dataset_folder_path, f"client_{client_number}"
@@ -48,12 +49,13 @@ class FlowerClient(NumPyClient):
         )
         self.dataset_input_feature = dataset_input_feature
         self.dataset_target_feature = dataset_target_feature
+        self.samples_per_class = samples_per_class
 
         self.cnn_type = list(cnn_config.keys())[
             int(client_number + 1) % len(cnn_config.keys())
         ]
         self.net = CNN(cnn_type=self.cnn_type)
-        self.vae = VAE()
+        self.cvae = CVAE()
 
         self.device = get_device()
 
@@ -61,13 +63,14 @@ class FlowerClient(NumPyClient):
         self.logger = get_logger(f"{__name__}_Client_{client_number}", client_number)
         self.logger.info("Client %s initiated", self.client_number)
 
-    def _set_weights_from_disk(self):
-        self.net.load_state_dict(
-            torch.load(
-                self.client_model_folder_path + "/model.pth",
-                map_location="cpu",
+    def _set_weights_from_disk(self, model):
+        if model == "net":
+            self.net.load_state_dict(
+                torch.load(
+                    self.client_model_folder_path + "/model.pth",
+                    map_location="cpu",
+                )
             )
-        )
 
     def _get_dataset_variance(self, dataloader, current_round):
         if current_round == 1:
@@ -75,8 +78,7 @@ class FlowerClient(NumPyClient):
             images = torch.stack(
                 [dataset[i][self.dataset_input_feature] for i in range(len(dataset))]
             )
-            var, _ = torch.var_mean(images)
-            var = var.item()
+            var = torch.var(images, unbiased=False, dim=[0, 2, 3]).mean().item()
 
             save_data = {"variance": var}
             save_metadata(save_data, self.client_metadata_path)
@@ -86,14 +88,74 @@ class FlowerClient(NumPyClient):
         return var
 
     def _handle_weights(self):
-        vae_weights = get_weights(self.vae)
-        return vae_weights
+        cvae_weights = get_weights(self.cvae)
+        return cvae_weights
+
+    def _create_synthetic_dataloader(self):
+        """
+        Memory-efficient synthetic dataloader generator using a CVAE decoder.
+        Generates synthetic samples batch-by-batch and streams into a HuggingFace dataset.
+        """
+
+        num_classes = metadata["num_classes"]
+
+        self.cvae.eval()
+        self.cvae.to(self.device)
+
+        # Total batches per class
+        batches_per_class = (
+            self.samples_per_class + self.batch_size - 1
+        ) // self.batch_size
+
+        def generator():
+            """Stream images batch-by-batch to HuggingFace."""
+            for cls in range(num_classes):
+                for _ in range(batches_per_class):
+
+                    # Current batch size (last batch may be smaller)
+                    current_bs = min(self.batch_size, self.samples_per_class)
+
+                    # One-hot condition vector
+                    y = torch.zeros(current_bs, num_classes, device=self.device)
+                    y[:, cls] = 1
+
+                    # Latent sample
+                    z = torch.randn(
+                        current_bs, metadata["latent_dim"], device=self.device
+                    )
+                    with torch.no_grad():
+                        z_cond = torch.cat([z, y], dim=1)
+                        expanded = self.cvae.fc_expand(z_cond)
+                        expanded = expanded.view(-1, *self.cvae.enc_shape)
+                        images = self.cvae.decoder(expanded).cpu()
+
+                    # Yield each image + label individually
+                    for img in images:
+                        yield {
+                            self.dataset_input_feature: img,
+                            self.dataset_target_feature: cls,
+                        }
+
+        # Streaming HF dataset from generator
+        hf_dataset = Dataset.from_generator(
+            generator,
+            features=None,  # Let HF infer tensor types automatically
+        )
+
+        # Convert to DataLoader
+        loader = TorchDataLoader(
+            hf_dataset,
+            batch_size=self.batch_size,
+            shuffle=True,
+        )
+
+        return loader
 
     def fit(self, parameters, config):
         # Fetching configuration settings from the server for the fit operation (server.configure_fit)
         current_round = config.get("current_round")
-        vae_index_start = config.get("vae_index_start")
-        vae_index_end = config.get("vae_index_end")
+        cvae_index_start = config.get("cvae_index_start")
+        cvae_index_end = config.get("cvae_index_end")
 
         self.logger.info("current_round %s", current_round)
 
@@ -107,83 +169,149 @@ class FlowerClient(NumPyClient):
             self.client_data_folder_path,
             self.batch_size,
         )
-        x_train_var = self._get_dataset_variance(train_dataloader, current_round)
 
-        set_weights(self.vae, parameters[vae_index_start:vae_index_end])
+        set_weights(self.cvae, parameters[cvae_index_start:cvae_index_end])
 
-        train_vae_results = train_vae(
-            vae=self.vae,
-            trainloader=train_dataloader,
-            epochs=self.local_epochs,
-            device=self.device,
-            dataset_input_feature=self.dataset_input_feature,
-            dataset_target_feature=self.dataset_target_feature,
-            x_train_var=x_train_var,
-        )
+        results = {"client_number": self.client_number}
 
-        train_vae_results.update({"client_number": self.client_number})
+        if current_round == 1:
+            val_dataloader = dataloader.load_dataset_from_disk(
+                "val_data",
+                self.client_data_folder_path,
+                self.batch_size,
+            )
 
-        self.logger.info("train_vae_results %s", train_vae_results)
+            results.update(
+                train_net(
+                    net=self.net,
+                    trainloader=train_dataloader,
+                    testloader=val_dataloader,
+                    epochs=self.net_epochs,
+                    learning_rate=self.net_learning_rate,
+                    device=self.device,
+                    dataset_input_feature=self.dataset_input_feature,
+                    dataset_target_feature=self.dataset_target_feature,
+                    optimizer_strategy="adam",
+                )
+            )
+
+            torch.save(
+                self.net.state_dict(), self.client_model_folder_path + "/model.pth"
+            )
+
+        else:
+            x_train_var = self._get_dataset_variance(train_dataloader, current_round)
+
+            results.update(
+                train_cvae(
+                    cvae=self.cvae,
+                    trainloader=train_dataloader,
+                    epochs=self.cvae_epochs,
+                    device=self.device,
+                    dataset_input_feature=self.dataset_input_feature,
+                    dataset_target_feature=self.dataset_target_feature,
+                    x_train_var=x_train_var,
+                )
+            )
 
         weights = self._handle_weights()
+
+        self.logger.info("results %s", results)
 
         return (
             weights,
             len(train_dataloader.dataset),
-            train_vae_results,
+            results,
         )
 
     def evaluate(self, parameters, config):
         current_round = config.get("current_round")
-        vae_index_start = config.get("vae_index_start")
-        vae_index_end = config.get("vae_index_end")
+        cvae_index_start = config.get("cvae_index_start")
+        cvae_index_end = config.get("cvae_index_end")
 
         self.logger.info("current_round %s", current_round)
 
-        # if current_round == 1:
-        #     os.makedirs(self.client_model_folder_path, exist_ok=True)
-        # else:
-        #     self._set_weights_from_disk()
+        self._set_weights_from_disk("net")
+
+        set_weights(self.cvae, parameters[cvae_index_start:cvae_index_end])
 
         dataloader = DataLoader(
             dataset_input_feature=self.dataset_input_feature,
+            dataset_target_feature=self.dataset_target_feature,
         )
 
         test_dataloader = dataloader.load_test_dataset_from_disk(
             self.dataset_folder_path, self.batch_size
         )
 
-        client_metadata = load_metadata(self.client_metadata_path)
+        results = {"client_number": self.client_number}
 
-        set_weights(self.vae, parameters[vae_index_start:vae_index_end])
+        loss, acc = 0.0, 0.0
 
-        # Generate and save images for all 10 classes (10 images per class)
-        synthetic_images_folder = os.path.join(
-            self.client_model_folder_path, "synthetic_images"
-        )
-        generate_and_save_images(
-            vae=self.vae,
-            pixel_cnn=self.pixel_cnn,
+        if current_round != 1:
+            train_dataloader = dataloader.load_dataset_from_disk(
+                "train_data",
+                self.client_data_folder_path,
+                self.batch_size,
+            )
+
+            val_dataloader = dataloader.load_dataset_from_disk(
+                "val_data",
+                self.client_data_folder_path,
+                self.batch_size,
+            )
+
+            synthetic_dataloader = self._create_synthetic_dataloader()
+
+            train_results = train_net(
+                net=self.net,
+                trainloader=synthetic_dataloader,
+                testloader=val_dataloader,
+                epochs=self.net_epochs,
+                learning_rate=self.net_learning_rate,
+                device=self.device,
+                dataset_input_feature=self.dataset_input_feature,
+                dataset_target_feature=self.dataset_target_feature,
+                optimizer_strategy="sgd",
+            )
+
+            results.update(
+                {
+                    "synthetic_train_loss": train_results["train_loss"],
+                    "synthetic_train_accuracy": train_results["train_accuracy"],
+                }
+            )
+
+            results.update(
+                train_net(
+                    net=self.net,
+                    trainloader=train_dataloader,
+                    testloader=val_dataloader,
+                    epochs=self.net_epochs,
+                    learning_rate=self.net_learning_rate,
+                    device=self.device,
+                    dataset_input_feature=self.dataset_input_feature,
+                    dataset_target_feature=self.dataset_target_feature,
+                    optimizer_strategy="sgd",
+                )
+            )
+
+        loss, acc = test_net(
+            net=self.net,
+            testloader=test_dataloader,
             device=self.device,
-            output_folder=synthetic_images_folder,
-            current_round=current_round,
-            num_classes=10,
-            images_per_class=10,
+            dataset_input_feature=self.dataset_input_feature,
+            dataset_target_feature=self.dataset_target_feature,
         )
 
-        self.logger.info(
-            "Generated and saved synthetic images for round %s", current_round
-        )
+        results.update({"loss": loss, "accuracy": acc})
 
-        evaluate_results = {}
-
-        evaluate_results.update({"client_number": self.client_number})
-        self.logger.info("evaluate_results %s", evaluate_results)
+        self.logger.info("results %s", results)
 
         return (
-            evaluate_results.get("classification_loss", 0.0),
+            loss,
             len(test_dataloader.dataset),
-            evaluate_results,
+            results,
         )
 
 
@@ -191,23 +319,27 @@ def client_fn(context: Context):
     """Construct a Client that will be run in a ClientApp."""
     client_number = context.node_config.get("partition-id")
     batch_size = context.run_config.get("batch-size")
-    local_epochs = context.run_config.get("local-epochs")
-    learning_rate = context.run_config.get("learning-rate")
+    net_epochs = context.run_config.get("net-epochs")
+    cvae_epochs = context.run_config.get("cvae-epochs")
+    net_learning_rate = context.run_config.get("net-learning-rate")
     dataset_folder_path = context.run_config.get("dataset-folder-path")
     model_folder_path = context.run_config.get("model-folder-path")
     dataset_input_feature = context.run_config.get("dataset-input-feature")
     dataset_target_feature = context.run_config.get("dataset-target-feature")
+    samples_per_class = context.run_config.get("samples-per-class")
 
     # Return Client instance
     return FlowerClient(
         client_number,
         batch_size,
-        local_epochs,
-        learning_rate,
+        net_epochs,
+        cvae_epochs,
+        net_learning_rate,
         dataset_folder_path,
         model_folder_path,
         dataset_input_feature,
         dataset_target_feature,
+        samples_per_class,
     ).to_client()
 
 
