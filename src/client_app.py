@@ -1,9 +1,9 @@
 import os
 
 import torch
-from datasets import Array3D, ClassLabel, Dataset, Features
 from flwr.client import ClientApp, NumPyClient
 from flwr.common import Context
+from PIL import Image
 from torch.utils.data import DataLoader as TorchDataLoader
 
 from src.data_loader import DataLoader
@@ -75,24 +75,93 @@ class FlowerClient(NumPyClient):
                 )
             )
 
-    def _get_dataset_variance(self, dataloader, current_round):
-        if current_round == self.cvae_training_starting_round:
-            dataset = dataloader.dataset
-            images = torch.stack(
-                [dataset[i][self.dataset_input_feature] for i in range(len(dataset))]
-            )
-            var = torch.var(images, unbiased=False, dim=[0, 2, 3]).mean().item()
-
-            save_data = {"variance": var}
-            save_metadata(save_data, self.client_metadata_path)
-        else:
-            var = load_metadata(self.client_metadata_path).get("variance", None)
-
-        return var
-
     def _handle_weights(self):
         cvae_weights = get_weights(self.cvae)
         return cvae_weights
+
+    def _save_synthetic_images(self, dataloader, current_round):
+        """
+        Save synthetic images as PNG files in the specified directory structure.
+
+        Structure: {client_model_folder_path}/round_{round}/{label}/{image_index}.png
+        """
+        import os
+
+        import torch
+        from PIL import Image
+
+        # Create base directory for this round
+        round_dir = os.path.join(
+            self.client_model_folder_path, f"round_{current_round}"
+        )
+        os.makedirs(round_dir, exist_ok=True)
+
+        image_counter = {}
+
+        # Iterate through the dataloader
+        for batch_idx, batch in enumerate(dataloader):
+            images = batch[self.dataset_input_feature]
+            labels = batch[self.dataset_target_feature]
+
+            # Convert labels to list if they're tensors
+            if torch.is_tensor(labels):
+                labels = labels.tolist()
+            elif not isinstance(labels, list):
+                labels = [labels]
+
+            # Process each image in the batch
+            for i, (image, label) in enumerate(zip(images, labels)):
+                # Initialize counter for this label if not exists
+                if label not in image_counter:
+                    image_counter[label] = 0
+                    # Create label directory
+                    label_dir = os.path.join(round_dir, str(label))
+                    os.makedirs(label_dir, exist_ok=True)
+
+                # Convert tensor to numpy array for saving
+                if torch.is_tensor(image):
+                    # Remove batch dimension if present
+                    if image.dim() == 4:
+                        image = image.squeeze(0)
+
+                    # Convert to PIL Image
+                    # Assuming image is in [C, H, W] format and values are in [0, 1]
+                    # If values are in [-1, 1], adjust to [0, 1]
+                    if image.min() < 0:
+                        image = (image + 1) / 2  # Normalize from [-1, 1] to [0, 1]
+
+                    # Convert to numpy and transpose to [H, W, C]
+                    image_np = image.cpu().numpy()
+                    if image_np.shape[0] == 1:  # Grayscale
+                        image_np = image_np.squeeze(0)
+                    else:  # RGB or other channels
+                        image_np = image_np.transpose(1, 2, 0)
+
+                    # Scale to [0, 255] if needed
+                    if image_np.max() <= 1.0:
+                        image_np = (image_np * 255).astype("uint8")
+
+                    # Create PIL Image
+                    if len(image_np.shape) == 2:  # Grayscale
+                        pil_image = Image.fromarray(image_np, mode="L")
+                    else:  # RGB
+                        pil_image = Image.fromarray(image_np, mode="RGB")
+                else:
+                    # If image is already a numpy array
+                    pil_image = Image.fromarray(image.astype("uint8"))
+
+                # Save the image
+                image_path = os.path.join(
+                    round_dir, str(label), f"{image_counter[label]}.png"
+                )
+                pil_image.save(image_path)
+
+                # Increment counter for this label
+                image_counter[label] += 1
+
+        self.logger.info(
+            f"Saved {sum(image_counter.values())} synthetic images to {round_dir}"
+        )
 
     def _create_synthetic_dataloader(self):
         """
@@ -226,8 +295,6 @@ class FlowerClient(NumPyClient):
             )
 
         else:
-            x_train_var = self._get_dataset_variance(train_dataloader, current_round)
-
             results.update(
                 train_cvae(
                     cvae=self.cvae,
@@ -236,7 +303,6 @@ class FlowerClient(NumPyClient):
                     device=self.device,
                     dataset_input_feature=self.dataset_input_feature,
                     dataset_target_feature=self.dataset_target_feature,
-                    x_train_var=x_train_var,
                 )
             )
 
@@ -289,6 +355,10 @@ class FlowerClient(NumPyClient):
 
             synthetic_dataloader = self._create_synthetic_dataloader()
 
+            # self._save_synthetic_images(synthetic_dataloader, current_round)
+
+            # synthetic_dataloader = self._create_synthetic_dataloader()
+
             train_results = train_net(
                 net=self.net,
                 trainloader=synthetic_dataloader,
@@ -320,6 +390,10 @@ class FlowerClient(NumPyClient):
                     dataset_target_feature=self.dataset_target_feature,
                     optimizer_strategy="sgd",
                 )
+            )
+
+            torch.save(
+                self.net.state_dict(), self.client_model_folder_path + "/model.pth"
             )
 
         loss, acc = test_net(

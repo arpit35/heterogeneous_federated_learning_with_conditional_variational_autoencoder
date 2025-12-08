@@ -4,7 +4,7 @@ import torch.nn as nn
 from src.scripts.helper import metadata
 
 
-def cvae_loss(recon_x, x, mu, logvar, x_train_var):
+def cvae_loss(recon_x, x, mu, logvar):
     """
     recon_x: reconstructed batch  [B, C, H, W]
     x:       original batch        [B, C, H, W]
@@ -13,7 +13,7 @@ def cvae_loss(recon_x, x, mu, logvar, x_train_var):
     """
 
     # BCE reconstruction loss
-    recon_loss = nn.functional.mse_loss(recon_x, x, reduction="sum") / x_train_var
+    recon_loss = nn.functional.mse_loss(recon_x, x, reduction="sum")
 
     # KL divergence term
     kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
@@ -28,7 +28,6 @@ def train_cvae(
     device,
     dataset_input_feature,
     dataset_target_feature,
-    x_train_var,
 ):
     """Train VQVAE and PixelCNN sequentially for better convergence."""
     cvae.to(device)
@@ -55,9 +54,7 @@ def train_cvae(
 
             recon_x, mu, logvar = cvae(images, one_hot_labels)
 
-            loss, recon_loss, kl_loss = cvae_loss(
-                recon_x, images, mu, logvar, x_train_var
-            )
+            loss, recon_loss, kl_loss = cvae_loss(recon_x, images, mu, logvar)
 
             loss.backward()
             cvae_optimizer.step()
