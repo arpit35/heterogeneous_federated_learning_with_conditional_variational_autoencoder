@@ -59,9 +59,6 @@ class FlowerClient(NumPyClient):
 
         self.device = get_device()
 
-        self.net_training_starting_round = 1
-        self.vae_training_starting_round = 2
-
         # Configure logging
         self.logger = get_logger(f"{__name__}_Client_{client_number}", client_number)
         self.logger.info("Client %s initiated", self.client_number)
@@ -159,7 +156,7 @@ class FlowerClient(NumPyClient):
             f"Saved {sum(image_counter.values())} synthetic images to {round_dir}"
         )
 
-    def _create_synthetic_data(self, label, return_dataloader=False) -> NDArrays | TorchDataLoader:
+    def _create_synthetic_data(self, label) -> NDArrays:
         num_classes = metadata["num_classes"]
 
         self.vae.eval()
@@ -198,41 +195,7 @@ class FlowerClient(NumPyClient):
         synthetic_data = torch.cat(synthetic_data, dim=0)
         synthetic_labels = torch.cat(synthetic_labels, dim=0)
 
-        if not return_dataloader:
-            return [synthetic_data.numpy(), synthetic_labels.numpy()]
-
-        # Create a proper PyTorch Dataset
-        class SyntheticDataset(torch.utils.data.Dataset):
-            def __init__(self, data, labels, input_feature, target_feature):
-                self.data = data
-                self.labels = labels
-                self.input_feature_name = input_feature
-                self.target_feature_name = target_feature
-
-            def __len__(self):
-                return len(self.data)
-
-            def __getitem__(self, idx):
-                return {
-                    self.input_feature_name: self.data[idx],
-                    self.target_feature_name: self.labels[idx],
-                }
-
-        # Create dataset and dataloader
-        dataset = SyntheticDataset(
-            synthetic_data,
-            synthetic_labels,
-            self.dataset_input_feature,
-            self.dataset_target_feature,
-        )
-        dataloader = TorchDataLoader(
-            dataset,
-            batch_size=self.batch_size,
-            shuffle=True,
-            drop_last=True,
-        )
-
-        return dataloader
+        return [synthetic_data.numpy(), synthetic_labels.numpy()]
 
     def fit(self, parameters, config):
         # Fetching configuration settings from the server for the fit operation (server.configure_fit)
@@ -247,7 +210,9 @@ class FlowerClient(NumPyClient):
 
         results = {"client_number": self.client_number}
 
-        if current_round >= self.net_training_starting_round:
+        data = []
+
+        if current_round == 1:
             train_dataloader = dataloader.load_dataset_from_disk(
                 "train_data",
                 self.client_data_folder_path,
@@ -279,9 +244,9 @@ class FlowerClient(NumPyClient):
                 self.net.state_dict(), self.client_model_folder_path + "/model.pth"
             )
 
-        elif current_round >= self.vae_training_starting_round:
+        else:
 
-            target_class = current_round - self.vae_training_starting_round
+            target_class = current_round - 2
 
             train_dataloader = dataloader.load_dataset_from_disk(
                 "train_data",
@@ -302,30 +267,22 @@ class FlowerClient(NumPyClient):
                 )
             )
 
-            synthetic_data = self._create_synthetic_data(
-                label=target_class, return_dataloader=False
-            )
+            synthetic_data = self._create_synthetic_data(label=target_class)
 
-            synthetic_data = ndarrays_to_parameters(synthetic_data)
+            data = ndarrays_to_parameters(synthetic_data)
 
         self.logger.info("results %s", results)
 
         return (
-            synthetic_data,
-            len(train_dataloader.dataset),
+            data,
+            0,
             results,
         )
 
     def evaluate(self, parameters, config):
         current_round = config.get("current_round", -1)
-        vae_index_start = config.get("vae_index_start")
-        vae_index_end = config.get("vae_index_end")
 
         self.logger.info("current_round %s", current_round)
-
-        self._set_weights_from_disk("net")
-
-        set_weights(self.vae, parameters[vae_index_start:vae_index_end])
 
         dataloader = DataLoader(
             dataset_input_feature=self.dataset_input_feature,
@@ -338,9 +295,12 @@ class FlowerClient(NumPyClient):
 
         results = {"client_number": self.client_number}
 
-        loss, acc = 0.0, 0.0
+        if int(current_round) > 1:
+            synthetic_dataloader = dataloader.load_dataset_from_ndarray(
+                parameters,
+                self.batch_size,
+            )
 
-        if int(current_round) >= self.vae_training_starting_round:
             train_dataloader = dataloader.load_dataset_from_disk(
                 "train_data",
                 self.client_data_folder_path,
@@ -353,11 +313,7 @@ class FlowerClient(NumPyClient):
                 self.batch_size,
             )
 
-            synthetic_dataloader = self._create_synthetic_data()
-
-            # self._save_synthetic_images(synthetic_dataloader, current_round)
-
-            # synthetic_dataloader = self._create_synthetic_data()
+            self._set_weights_from_disk("net")
 
             train_results = train_net(
                 net=self.net,
@@ -373,8 +329,8 @@ class FlowerClient(NumPyClient):
 
             results.update(
                 {
-                    "synthetic_train_loss": train_results["train_loss"],
-                    "synthetic_train_accuracy": train_results["train_accuracy"],
+                    "synthetic_data_train_loss": train_results["train_loss"],
+                    "synthetic_data_train_accuracy": train_results["train_accuracy"],
                 }
             )
 
@@ -392,9 +348,7 @@ class FlowerClient(NumPyClient):
                 )
             )
 
-            torch.save(
-                self.net.state_dict(), self.client_model_folder_path + "/model.pth"
-            )
+        loss, acc = 0.0, 0.0
 
         loss, acc = test_net(
             net=self.net,
@@ -410,7 +364,7 @@ class FlowerClient(NumPyClient):
 
         return (
             loss,
-            len(test_dataloader.dataset),
+            0,
             results,
         )
 

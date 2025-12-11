@@ -2,6 +2,7 @@ import json
 import os
 from typing import List, Tuple
 
+import torch
 from flwr.common import (
     Context,
     EvaluateIns,
@@ -44,6 +45,8 @@ class CustomFedAvg(FedAvg):
         self.num_server_rounds = num_server_rounds
         self.plots_folder_path = plots_folder_path
         self.dataset_name = dataset_name
+        self.synthetic_data = []
+        self.synthetic_labels = []
         self.client_plot = {}
 
     def configure_fit(self, server_round, parameters, client_manager):
@@ -95,13 +98,25 @@ class CustomFedAvg(FedAvg):
         if not self.accept_failures and failures:
             return None, {}
 
-        data = []
+        if server_round == 1:
+            return None, {}
+
         for _, fit_res in results:
             print("fit_res.metrics", fit_res.metrics)
-            # here i am dowing [[]] but i want []
-            data.append(parameters_to_ndarrays(fit_res.parameters)[0])
+            data = parameters_to_ndarrays(fit_res.parameters)
 
-        return ndarrays_to_parameters(data), {}
+            self.synthetic_data.append(data[0])
+            self.synthetic_labels.append(data[1])
+
+        return (
+            ndarrays_to_parameters(
+                [
+                    torch.cat(self.synthetic_data, dim=0).cpu().numpy(),
+                    torch.cat(self.synthetic_labels, dim=0).cpu().numpy(),
+                ]
+            ),
+            {},
+        )
 
     def aggregate_evaluate(self, server_round, results, failures):
 
