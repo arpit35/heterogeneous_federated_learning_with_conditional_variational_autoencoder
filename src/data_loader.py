@@ -145,22 +145,54 @@ class DataLoader:
     def load_dataset_from_disk(
         self,
         data_type: str,
-        client_folder_path,
-        batch_size,
+        client_folder_path: str,
+        batch_size: int,
+        target_class: int | None = None,
+        upsample_amount: int = 0,
     ) -> TorchDataLoader:
+
         client_file_path = os.path.join(client_folder_path, data_type)
+        dataset = load_from_disk(client_file_path)
 
-        client_dataset = load_from_disk(client_file_path).with_transform(
-            self._apply_transforms
-        )
+        # ---- 1) Filter to only the target class ----
+        if target_class is not None:
+            dataset = dataset.filter(
+                lambda x: x[self.dataset_target_feature] == target_class,
+                load_from_cache_file=False,
+            )
 
-        data_loader = TorchDataLoader(
-            client_dataset,
+        # Count samples
+        num_samples = len(dataset)
+
+        # ---- 2) If < 100 samples, return None ----
+        if num_samples < 100:
+            return None
+
+        # ---- 3) If 100 ≤ samples < 1000, upsample to 1000 ----
+        if num_samples < upsample_amount and upsample_amount > 0:
+            # Random indices with replacement
+            extra_indices = np.random.choice(
+                num_samples, upsample_amount - num_samples, replace=True
+            )
+
+            # Convert dataset to list to append easily
+            dataset_list = [dataset[i] for i in range(num_samples)]
+            dataset_list.extend(dataset[i] for i in extra_indices)
+
+            # Recreate dataset from list
+            dataset = dataset.from_list(dataset_list)
+
+        # Apply transforms
+        dataset = dataset.with_transform(self._apply_transforms)
+
+        # Return dataloader
+        dataloader = TorchDataLoader(
+            dataset,
             batch_size=batch_size,
             shuffle=True,
         )
 
-        return data_loader
+        return dataloader
 
     def load_test_dataset_from_disk(
         self,

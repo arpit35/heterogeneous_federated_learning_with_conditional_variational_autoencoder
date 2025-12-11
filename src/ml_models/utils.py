@@ -1,11 +1,6 @@
-import os
 from collections import OrderedDict
 
-import numpy as np
 import torch
-from PIL import Image
-
-from src.scripts.helper import metadata
 
 
 def get_weights(net):

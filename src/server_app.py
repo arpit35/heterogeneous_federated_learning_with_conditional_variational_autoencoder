@@ -2,7 +2,6 @@ import json
 import os
 from typing import List, Tuple
 
-import numpy as np
 from flwr.common import (
     Context,
     EvaluateIns,
@@ -14,9 +13,6 @@ from flwr.common import (
 )
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from flwr.server.strategy import FedAvg
-
-from src.ml_models.cvae import CVAE
-from src.ml_models.utils import get_weights, set_weights
 
 
 # Define metric aggregation function
@@ -41,7 +37,6 @@ class CustomFedAvg(FedAvg):
         num_server_rounds,
         plots_folder_path,
         dataset_name,
-        parameter_indices_config,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -49,7 +44,6 @@ class CustomFedAvg(FedAvg):
         self.num_server_rounds = num_server_rounds
         self.plots_folder_path = plots_folder_path
         self.dataset_name = dataset_name
-        self.parameter_indices_config = parameter_indices_config
         self.client_plot = {}
 
     def configure_fit(self, server_round, parameters, client_manager):
@@ -58,7 +52,6 @@ class CustomFedAvg(FedAvg):
 
         config: dict[str, Scalar] = {
             "current_round": server_round,
-            **self.parameter_indices_config,
         }
 
         print("fit_ins.config", config)
@@ -79,7 +72,6 @@ class CustomFedAvg(FedAvg):
         # Parameters and config
         config: dict[str, Scalar] = {
             "current_round": server_round,
-            **self.parameter_indices_config,
         }
 
         print("fit_ins.config", config)
@@ -97,9 +89,19 @@ class CustomFedAvg(FedAvg):
         return [(client, evaluate_ins) for client in clients]
 
     def aggregate_fit(self, server_round, results, failures):
+        if not results:
+            return None, {}
+        # Do not aggregate if there are failures and failures are not accepted
+        if not self.accept_failures and failures:
+            return None, {}
+
+        data = []
         for _, fit_res in results:
             print("fit_res.metrics", fit_res.metrics)
-        return super().aggregate_fit(server_round, results, failures)
+            # here i am dowing [[]] but i want []
+            data.append(parameters_to_ndarrays(fit_res.parameters)[0])
+
+        return ndarrays_to_parameters(data), {}
 
     def aggregate_evaluate(self, server_round, results, failures):
 
@@ -136,16 +138,6 @@ def server_fn(context: Context):
     plots_folder_path = context.run_config.get("plots-folder-path")
     dataset_name = context.run_config.get("dataset-name")
 
-    cvae_parameters = get_weights(CVAE())
-    initial_parameters = ndarrays_to_parameters(cvae_parameters)
-
-    cvae_index_start = 0
-    cvae_index_end = len(cvae_parameters)
-    parameter_indices_config = {
-        "cvae_index_start": cvae_index_start,
-        "cvae_index_end": cvae_index_end,
-    }
-
     # Define the strategy
     strategy = CustomFedAvg(
         fraction_evaluate=fraction_evaluate,
@@ -154,8 +146,6 @@ def server_fn(context: Context):
         num_server_rounds=num_server_rounds,
         plots_folder_path=plots_folder_path,
         dataset_name=dataset_name,
-        initial_parameters=initial_parameters,
-        parameter_indices_config=parameter_indices_config,
     )
     config = ServerConfig(num_rounds=int(context.run_config["num-server-rounds"]))
 

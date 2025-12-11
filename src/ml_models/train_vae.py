@@ -4,7 +4,7 @@ import torch.nn as nn
 from src.scripts.helper import metadata
 
 
-def cvae_loss(recon_x, x, mu, logvar):
+def vae_loss(recon_x, x, mu, logvar):
     """
     recon_x: reconstructed batch  [B, C, H, W]
     x:       original batch        [B, C, H, W]
@@ -21,8 +21,8 @@ def cvae_loss(recon_x, x, mu, logvar):
     return recon_loss + kl_loss, recon_loss, kl_loss
 
 
-def train_cvae(
-    cvae,
+def train_vae(
+    vae,
     trainloader,
     epochs,
     device,
@@ -30,11 +30,11 @@ def train_cvae(
     dataset_target_feature,
 ):
     """Train VQVAE and PixelCNN sequentially for better convergence."""
-    cvae.to(device)
+    vae.to(device)
 
-    cvae_optimizer = torch.optim.Adam(cvae.parameters())
+    vae_optimizer = torch.optim.Adam(vae.parameters())
 
-    cvae.train()
+    vae.train()
 
     total_loss = 0
     total_recon_loss = 0
@@ -43,7 +43,7 @@ def train_cvae(
 
     for _ in range(epochs):
         for batch in trainloader:
-            cvae_optimizer.zero_grad()
+            vae_optimizer.zero_grad()
 
             images = batch[dataset_input_feature].to(device)
             labels = batch[dataset_target_feature].to(device)
@@ -52,12 +52,12 @@ def train_cvae(
                 labels, num_classes=metadata["num_classes"]
             ).float()
 
-            recon_x, mu, logvar = cvae(images, one_hot_labels)
+            recon_x, mu, logvar = vae(images, one_hot_labels)
 
-            loss, recon_loss, kl_loss = cvae_loss(recon_x, images, mu, logvar)
+            loss, recon_loss, kl_loss = vae_loss(recon_x, images, mu, logvar)
 
             loss.backward()
-            cvae_optimizer.step()
+            vae_optimizer.step()
 
             batch_size = images.size(0)
             total_loss += loss.item() * batch_size

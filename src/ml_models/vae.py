@@ -6,10 +6,9 @@ from src.ml_models.encoder import Encoder
 from src.scripts.helper import metadata
 
 
-class CVAE(nn.Module):
+class vae(nn.Module):
     def __init__(
         self,
-        num_classes=metadata["num_classes"],
         h_dim=metadata["h_dim"],
         res_h_dim=metadata["res_h_dim"],
         n_res_layers=metadata["n_res_layers"],
@@ -34,13 +33,11 @@ class CVAE(nn.Module):
             self.flatten_dim = C_enc * H_enc * W_enc
 
         # ----- Latent space -----
-        # Input to FC now includes condition y
-        self.fc_mu = nn.Linear(self.flatten_dim + num_classes, latent_dim)
-        self.fc_logvar = nn.Linear(self.flatten_dim + num_classes, latent_dim)
+        self.fc_mu = nn.Linear(self.flatten_dim, latent_dim)
+        self.fc_logvar = nn.Linear(self.flatten_dim, latent_dim)
 
         # ----- Decoder -----
-        # Decoder input: z + y
-        self.fc_expand = nn.Linear(latent_dim + num_classes, self.flatten_dim)
+        self.fc_expand = nn.Linear(latent_dim, self.flatten_dim)
 
         self.decoder = Decoder(C_enc, h_dim, n_res_layers, res_h_dim, input_shape[0])
 
@@ -49,7 +46,7 @@ class CVAE(nn.Module):
         eps = torch.randn_like(std)
         return mu + eps * std
 
-    def forward(self, x, y):
+    def forward(self, x):
         """
         x : input image batch
         y : conditioning batch (one-hot or dense), shape [B, num_classes]
@@ -59,18 +56,13 @@ class CVAE(nn.Module):
 
         h = h.flatten(start_dim=1)
 
-        h_cond = torch.cat([h, y], dim=1)
-
-        mu = self.fc_mu(h_cond)
-        logvar = self.fc_logvar(h_cond)
+        mu = self.fc_mu(h)
+        logvar = self.fc_logvar(h)
 
         # Reparameterization trick
         z = self.reparameterize(mu, logvar)
+        z = self.fc_expand(z).view(B, *self.enc_shape)
 
-        z_cond = torch.cat([z, y], dim=1)
-
-        z_expanded = self.fc_expand(z_cond).view(B, *self.enc_shape)
-
-        x_recon = self.decoder(z_expanded)
+        x_recon = self.decoder(z)
 
         return x_recon, mu, logvar
