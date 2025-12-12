@@ -49,7 +49,6 @@ class vae(nn.Module):
     def forward(self, x):
         """
         x : input image batch
-        y : conditioning batch (one-hot or dense), shape [B, num_classes]
         """
         h = self.encoder(x)
         B = h.size(0)

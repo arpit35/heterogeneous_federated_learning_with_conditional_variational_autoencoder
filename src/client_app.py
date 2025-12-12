@@ -157,20 +157,18 @@ class FlowerClient(NumPyClient):
         )
 
     def _create_synthetic_data(self, label) -> NDArrays:
-        num_classes = metadata["num_classes"]
-
         self.vae.eval()
         self.vae.to(self.device)
-
-        total_samples = self.samples_per_class * num_classes
 
         # Create synthetic data in memory (or in batches if memory is constrained)
         synthetic_data = []
         synthetic_labels = []
 
         # Generate in batches to be memory efficient
-        for start_idx in range(0, total_samples, self.batch_size):
-            current_batch_size = min(self.batch_size, total_samples - start_idx)
+        for start_idx in range(0, self.samples_per_class, self.batch_size):
+            current_batch_size = min(
+                self.batch_size, self.samples_per_class - start_idx
+            )
 
             # Sample z
             z = torch.randn(
@@ -311,17 +309,13 @@ class FlowerClient(NumPyClient):
                 self.batch_size,
             )
 
-            train_dataloader = dataloader.load_dataset_from_disk(
-                "train_data",
-                self.client_data_folder_path,
-                self.batch_size,
-            )
-
             val_dataloader = dataloader.load_dataset_from_disk(
                 "val_data",
                 self.client_data_folder_path,
                 self.batch_size,
             )
+
+            # self._save_synthetic_images(synthetic_dataloader, current_round)
 
             train_results = train_net(
                 net=self.net,
@@ -340,20 +334,6 @@ class FlowerClient(NumPyClient):
                     "synthetic_data_train_loss": train_results["train_loss"],
                     "synthetic_data_train_accuracy": train_results["train_accuracy"],
                 }
-            )
-
-            results.update(
-                train_net(
-                    net=self.net,
-                    trainloader=train_dataloader,
-                    testloader=val_dataloader,
-                    epochs=self.net_epochs,
-                    learning_rate=self.net_learning_rate,
-                    device=self.device,
-                    dataset_input_feature=self.dataset_input_feature,
-                    dataset_target_feature=self.dataset_target_feature,
-                    optimizer_strategy="adam",
-                )
             )
 
         loss, acc = 0.0, 0.0

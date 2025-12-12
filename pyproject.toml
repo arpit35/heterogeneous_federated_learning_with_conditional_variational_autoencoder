@@ -21,11 +21,11 @@ num-of-clients = 5
 net-learning-rate = 0.001
 fraction-evaluate = 1
 net-epochs = 3
-vae-epochs = 10
+vae-epochs = 12
 batch-size = 64
 data-loader-alpha = 0.1
 num-server-rounds = 11
-samples-per-class = 3000
+samples-per-class = 1000
 prepare-dataset = false
 
 # Paths
