@@ -256,6 +256,17 @@ class FlowerClient(NumPyClient):
                 upsample_amount=1000,
             )
 
+            if train_dataloader is None:
+                self.logger.info(
+                    "No data for target_class %s, skipping VAE training",
+                    target_class,
+                )
+                return (
+                    [],
+                    0,
+                    results,
+                )
+
             results.update(
                 train_vae(
                     vae=self.vae,
@@ -263,13 +274,10 @@ class FlowerClient(NumPyClient):
                     epochs=self.vae_epochs,
                     device=self.device,
                     dataset_input_feature=self.dataset_input_feature,
-                    dataset_target_feature=self.dataset_target_feature,
                 )
             )
 
-            synthetic_data = self._create_synthetic_data(label=target_class)
-
-            data = ndarrays_to_parameters(synthetic_data)
+            data = self._create_synthetic_data(label=target_class)
 
         self.logger.info("results %s", results)
 
@@ -295,6 +303,8 @@ class FlowerClient(NumPyClient):
 
         results = {"client_number": self.client_number}
 
+        self._set_weights_from_disk("net")
+
         if int(current_round) > 1:
             synthetic_dataloader = dataloader.load_dataset_from_ndarray(
                 parameters,
@@ -313,8 +323,6 @@ class FlowerClient(NumPyClient):
                 self.batch_size,
             )
 
-            self._set_weights_from_disk("net")
-
             train_results = train_net(
                 net=self.net,
                 trainloader=synthetic_dataloader,
@@ -324,7 +332,7 @@ class FlowerClient(NumPyClient):
                 device=self.device,
                 dataset_input_feature=self.dataset_input_feature,
                 dataset_target_feature=self.dataset_target_feature,
-                optimizer_strategy="sgd",
+                optimizer_strategy="adam",
             )
 
             results.update(
@@ -344,7 +352,7 @@ class FlowerClient(NumPyClient):
                     device=self.device,
                     dataset_input_feature=self.dataset_input_feature,
                     dataset_target_feature=self.dataset_target_feature,
-                    optimizer_strategy="sgd",
+                    optimizer_strategy="adam",
                 )
             )
 
@@ -364,7 +372,7 @@ class FlowerClient(NumPyClient):
 
         return (
             loss,
-            0,
+            1,
             results,
         )
 

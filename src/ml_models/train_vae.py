@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 
-from src.scripts.helper import metadata
-
 
 def vae_loss(recon_x, x, mu, logvar):
     """
@@ -27,7 +25,6 @@ def train_vae(
     epochs,
     device,
     dataset_input_feature,
-    dataset_target_feature,
 ):
     """Train VQVAE and PixelCNN sequentially for better convergence."""
     vae.to(device)
@@ -46,13 +43,8 @@ def train_vae(
             vae_optimizer.zero_grad()
 
             images = batch[dataset_input_feature].to(device)
-            labels = batch[dataset_target_feature].to(device)
 
-            one_hot_labels = nn.functional.one_hot(
-                labels, num_classes=metadata["num_classes"]
-            ).float()
-
-            recon_x, mu, logvar = vae(images, one_hot_labels)
+            recon_x, mu, logvar = vae(images)
 
             loss, recon_loss, kl_loss = vae_loss(recon_x, images, mu, logvar)
 

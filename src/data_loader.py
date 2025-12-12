@@ -1,6 +1,7 @@
 import os
 
 import numpy as np
+import torch
 from datasets import Dataset, load_dataset, load_from_disk
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import DirichletPartitioner
@@ -27,9 +28,14 @@ class DataLoader:
         )
 
     def _apply_transforms(self, batch):
-        batch[self.dataset_input_feature] = [
-            self.pytorch_transforms(img) for img in batch[self.dataset_input_feature]
-        ]
+        if batch.get(self.dataset_input_feature):
+            transformed_images = []
+            for img in batch[self.dataset_input_feature]:
+                if isinstance(img, list):
+                    transformed_images.append(torch.tensor(img, dtype=torch.float32))
+                else:
+                    transformed_images.append(self.pytorch_transforms(img))
+            batch[self.dataset_input_feature] = transformed_images
         return batch
 
     def _load_partition(self, num_clients: int, alpha: float):
@@ -177,7 +183,7 @@ class DataLoader:
 
             # Convert dataset to list to append easily
             dataset_list = [dataset[i] for i in range(num_samples)]
-            dataset_list.extend(dataset[i] for i in extra_indices)
+            dataset_list.extend(dataset[int(i)] for i in extra_indices)
 
             # Recreate dataset from list
             dataset = dataset.from_list(dataset_list)

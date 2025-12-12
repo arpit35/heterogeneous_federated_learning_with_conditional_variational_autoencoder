@@ -2,7 +2,7 @@ import json
 import os
 from typing import List, Tuple
 
-import torch
+import numpy as np
 from flwr.common import (
     Context,
     EvaluateIns,
@@ -99,20 +99,24 @@ class CustomFedAvg(FedAvg):
             return None, {}
 
         if server_round == 1:
+            for _, fit_res in results:
+                print("fit_res.metrics", fit_res.metrics)
             return None, {}
 
         for _, fit_res in results:
             print("fit_res.metrics", fit_res.metrics)
             data = parameters_to_ndarrays(fit_res.parameters)
 
+            if len(data) != 2:
+                continue
             self.synthetic_data.append(data[0])
             self.synthetic_labels.append(data[1])
 
         return (
             ndarrays_to_parameters(
                 [
-                    torch.cat(self.synthetic_data, dim=0).cpu().numpy(),
-                    torch.cat(self.synthetic_labels, dim=0).cpu().numpy(),
+                    np.concatenate(self.synthetic_data, axis=0),
+                    np.concatenate(self.synthetic_labels, axis=0),
                 ]
             ),
             {},
