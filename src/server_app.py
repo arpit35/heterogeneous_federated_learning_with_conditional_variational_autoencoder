@@ -15,6 +15,9 @@ from flwr.common import (
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from flwr.server.strategy import FedAvg
 
+from src.ml_models.h_fed_pfs import Adapter
+from src.ml_models.utils import get_weights
+
 
 # Define metric aggregation function
 def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
@@ -38,6 +41,7 @@ class CustomFedAvg(FedAvg):
         num_server_rounds,
         plots_folder_path,
         dataset_name,
+        mode,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -45,6 +49,7 @@ class CustomFedAvg(FedAvg):
         self.num_server_rounds = num_server_rounds
         self.plots_folder_path = plots_folder_path
         self.dataset_name = dataset_name
+        self.mode = mode
         self.synthetic_data = []
         self.synthetic_labels = []
         self.client_plot = {}
@@ -92,6 +97,12 @@ class CustomFedAvg(FedAvg):
         return [(client, evaluate_ins) for client in clients]
 
     def aggregate_fit(self, server_round, results, failures):
+        if self.mode == "HFedPFS":
+            for _, fit_res in results:
+                print("fit_res.metrics", fit_res.metrics)
+
+            return super().aggregate_fit(server_round, results, failures)
+
         if not results:
             return None, {}
         # Do not aggregate if there are failures and failures are not accepted
@@ -156,6 +167,12 @@ def server_fn(context: Context):
     num_server_rounds = context.run_config.get("num-server-rounds")
     plots_folder_path = context.run_config.get("plots-folder-path")
     dataset_name = context.run_config.get("dataset-name")
+    mode = context.run_config.get("mode")
+
+    initial_parameters = None
+    if mode == "HFedPFS":
+        adapter_ndarrays = get_weights(Adapter())
+        initial_parameters = ndarrays_to_parameters(adapter_ndarrays)
 
     # Define the strategy
     strategy = CustomFedAvg(
@@ -165,6 +182,8 @@ def server_fn(context: Context):
         num_server_rounds=num_server_rounds,
         plots_folder_path=plots_folder_path,
         dataset_name=dataset_name,
+        mode=mode,
+        initial_parameters=initial_parameters,
     )
     config = ServerConfig(num_rounds=int(context.run_config["num-server-rounds"]))
 

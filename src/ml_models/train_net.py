@@ -27,7 +27,8 @@ def train_net(
             images = batch[dataset_input_feature].to(device)
             labels = batch[dataset_target_feature].to(device)
             optimizer.zero_grad()
-            criterion(net(images), labels).backward()
+            logits, _ = net(images)
+            criterion(logits, labels).backward()
             optimizer.step()
 
     train_loss, train_acc = test_net(
@@ -56,9 +57,9 @@ def test_net(
         for batch in testloader:
             images = batch[dataset_input_feature].to(device)
             labels = batch[dataset_target_feature].to(device)
-            outputs = net(images)
-            loss += criterion(outputs, labels).item()
-            correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
+            logits, _ = net(images)
+            loss += criterion(logits, labels).item()
+            correct += (torch.max(logits.data, 1)[1] == labels).sum().item()
     accuracy = correct / len(testloader.dataset)
     loss = loss / len(testloader.dataset)
     return loss, accuracy

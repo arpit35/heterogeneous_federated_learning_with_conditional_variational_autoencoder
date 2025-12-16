@@ -89,6 +89,6 @@ class CNN(nn.Module):
         x = x.view(x.size(0), -1)  # Flatten
         x = F.relu(self.fc1(x))  # → 2000
         x = F.relu(self.fc2(x))  # → 500
-        x = self.fc3(x)  # → num_classes
+        out = self.fc3(x)  # → num_classes
 
-        return x
+        return out, x

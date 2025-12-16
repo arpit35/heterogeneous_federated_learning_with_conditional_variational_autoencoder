@@ -14,7 +14,7 @@ pip install -r requirements.txt
 To prepare the dataset and clear logs before running the Flower application, use the following command:
 
 ```sh
-python .\pre_flwr_run.py
+python pre_flwr_run.py
 ```
 
 To run the Flower application, use the following command:
