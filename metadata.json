@@ -3,8 +3,9 @@
     "image_width": 28,
     "image_height": 28,
     "num_channels": 1,
-    "h_dim": 112,
-    "res_h_dim": 28,
-    "n_res_layers": 1,
-    "latent_dim": 56
+    "h_dim": 256,
+    "res_h_dim": 64,
+    "n_res_layers": 3,
+    "latent_dim": 128,
+    "f_dim": 500
 }

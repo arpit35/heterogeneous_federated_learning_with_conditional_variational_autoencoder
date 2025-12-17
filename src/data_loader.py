@@ -94,6 +94,7 @@ class DataLoader:
             "res_h_dim": res_h_dim,
             "n_res_layers": n_res_layers,
             "latent_dim": latent_dim,
+            "f_dim": 500,
         }
 
     def save_datasets_to_disk(

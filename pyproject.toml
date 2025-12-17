@@ -24,11 +24,11 @@ net-epochs = 3
 vae-epochs = 12
 batch-size = 64
 data-loader-alpha = 0.1
-num-server-rounds = 100
+num-server-rounds = 20
 samples-per-class = 1000
 prepare-dataset = false
 # vqe, HFedPFS FedRep
-mode = "HFedPFS"
+mode = "vqe"
 
 # Paths
 logs-folder-path = "log"
@@ -37,7 +37,7 @@ plots-folder-path = "src/plots"
 model-folder-path = "src/clients_models"
 
 # Dataset and Model Configuration
-dataset-name = "mnist"
+dataset-name = "fashion_mnist"
 dataset-input-feature = "image"
 dataset-target-feature = "label"
 

@@ -236,6 +236,65 @@ class FlowerVAEClient(NumPyClient):
                 self.net.state_dict(), self.client_model_folder_path + "/model.pth"
             )
 
+        elif current_round >= metadata["num_classes"] + 2:
+            self._set_weights_from_disk("net")
+
+            train_dataloader = dataloader.load_dataset_from_disk(
+                "train_data",
+                self.client_data_folder_path,
+                self.batch_size,
+            )
+
+            val_dataloader = dataloader.load_dataset_from_disk(
+                "val_data",
+                self.client_data_folder_path,
+                self.batch_size,
+            )
+
+            synthetic_dataloader = dataloader.load_dataset_from_ndarray(
+                parameters,
+                self.batch_size,
+            )
+
+            # self._save_synthetic_images(synthetic_dataloader, current_round)
+
+            train_results = train_net(
+                net=self.net,
+                trainloader=synthetic_dataloader,
+                testloader=val_dataloader,
+                epochs=self.net_epochs,
+                learning_rate=self.net_learning_rate,
+                device=self.device,
+                dataset_input_feature=self.dataset_input_feature,
+                dataset_target_feature=self.dataset_target_feature,
+                optimizer_strategy="sgd",
+            )
+
+            results.update(
+                {
+                    "synthetic_data_train_loss": train_results["train_loss"],
+                    "synthetic_data_train_accuracy": train_results["train_accuracy"],
+                }
+            )
+
+            results.update(
+                train_net(
+                    net=self.net,
+                    trainloader=train_dataloader,
+                    testloader=val_dataloader,
+                    epochs=self.net_epochs,
+                    learning_rate=self.net_learning_rate,
+                    device=self.device,
+                    dataset_input_feature=self.dataset_input_feature,
+                    dataset_target_feature=self.dataset_target_feature,
+                    optimizer_strategy="sgd",
+                )
+            )
+
+            torch.save(
+                self.net.state_dict(), self.client_model_folder_path + "/model.pth"
+            )
+
         else:
 
             target_class = current_round - 2
@@ -273,6 +332,11 @@ class FlowerVAEClient(NumPyClient):
 
         self.logger.info("results %s", results)
 
+        self.net.to("cpu")
+        self.vae.to("cpu")
+
+        torch.cuda.empty_cache()
+
         return (
             data,
             0,
@@ -289,8 +353,16 @@ class FlowerVAEClient(NumPyClient):
             dataset_target_feature=self.dataset_target_feature,
         )
 
-        test_dataloader = dataloader.load_test_dataset_from_disk(
-            self.dataset_folder_path, self.batch_size
+        train_dataloader = dataloader.load_dataset_from_disk(
+            "train_data",
+            self.client_data_folder_path,
+            self.batch_size,
+        )
+
+        val_dataloader = dataloader.load_dataset_from_disk(
+            "val_data",
+            self.client_data_folder_path,
+            self.batch_size,
         )
 
         results = {"client_number": self.client_number}
@@ -300,12 +372,6 @@ class FlowerVAEClient(NumPyClient):
         if int(current_round) > 1:
             synthetic_dataloader = dataloader.load_dataset_from_ndarray(
                 parameters,
-                self.batch_size,
-            )
-
-            val_dataloader = dataloader.load_dataset_from_disk(
-                "val_data",
-                self.client_data_folder_path,
                 self.batch_size,
             )
 
@@ -320,7 +386,7 @@ class FlowerVAEClient(NumPyClient):
                 device=self.device,
                 dataset_input_feature=self.dataset_input_feature,
                 dataset_target_feature=self.dataset_target_feature,
-                optimizer_strategy="adam",
+                optimizer_strategy="sgd",
             )
 
             results.update(
@@ -330,22 +396,34 @@ class FlowerVAEClient(NumPyClient):
                 }
             )
 
-        loss, acc = 0.0, 0.0
-
-        loss, acc = test_net(
+        test_result = train_net(
             net=self.net,
-            testloader=test_dataloader,
+            trainloader=train_dataloader,
+            testloader=val_dataloader,
+            epochs=self.net_epochs,
+            learning_rate=self.net_learning_rate,
             device=self.device,
             dataset_input_feature=self.dataset_input_feature,
             dataset_target_feature=self.dataset_target_feature,
+            optimizer_strategy="sgd",
         )
 
-        results.update({"loss": loss, "accuracy": acc})
+        results.update(
+            {
+                "loss": test_result["train_loss"],
+                "accuracy": test_result["train_accuracy"],
+            }
+        )
 
         self.logger.info("results %s", results)
 
+        self.net.to("cpu")
+        self.vae.to("cpu")
+
+        torch.cuda.empty_cache()
+
         return (
-            loss,
+            results["loss"],
             1,
             results,
         )

@@ -39,6 +39,10 @@ def train_net(
         "train_loss": train_loss,
         "train_accuracy": train_acc,
     }
+
+    del optimizer
+    torch.cuda.empty_cache()
+
     return results
 
 

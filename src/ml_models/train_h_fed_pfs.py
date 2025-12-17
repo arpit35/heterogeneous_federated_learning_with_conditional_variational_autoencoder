@@ -112,4 +112,10 @@ def train_h_fed_pfs(
         "L2_loss": avg_L2_loss,
         "L3_loss": avg_L3_loss,
     }
+
+    del optimizer_net
+    del optimizer_fpn
+    del optimizer_adapter
+    torch.cuda.empty_cache()
+
     return results
