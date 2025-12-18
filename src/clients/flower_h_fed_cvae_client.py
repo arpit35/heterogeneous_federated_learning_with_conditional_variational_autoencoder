@@ -4,6 +4,8 @@ import torch
 from flwr.client import NumPyClient
 from flwr.common import NDArrays
 from PIL import Image
+from torch.utils.data import ConcatDataset
+from torch.utils.data import DataLoader as TorchDataLoader
 
 from src.data_loader import DataLoader
 from src.ml_models.cnn import CNN
@@ -211,7 +213,7 @@ class FlowerHFedCVAEClient(NumPyClient):
                 "train_data",
                 self.client_data_folder_path,
                 self.batch_size,
-                target_class=current_round,
+                target_class=target_class,
                 upsample_amount=1000,
             )
 
@@ -336,18 +338,6 @@ class FlowerHFedCVAEClient(NumPyClient):
             dataset_target_feature=self.dataset_target_feature,
         )
 
-        train_dataloader = dataloader.load_dataset_from_disk(
-            "train_data",
-            self.client_data_folder_path,
-            self.batch_size,
-        )
-
-        val_dataloader = dataloader.load_dataset_from_disk(
-            "val_data",
-            self.client_data_folder_path,
-            self.batch_size,
-        )
-
         test_dataloader = dataloader.load_test_dataset_from_disk(
             self.dataset_folder_path, self.batch_size
         )
@@ -362,13 +352,11 @@ class FlowerHFedCVAEClient(NumPyClient):
                 self.batch_size,
             )
 
-            # self._save_synthetic_images(synthetic_dataloader, current_round)
-
             train_results = train_net(
                 net=self.net,
                 trainloader=synthetic_dataloader,
-                testloader=val_dataloader,
-                epochs=1,
+                testloader=test_dataloader,
+                epochs=self.net_epochs,
                 learning_rate=self.net_learning_rate,
                 device=self.device,
                 dataset_input_feature=self.dataset_input_feature,
@@ -376,37 +364,21 @@ class FlowerHFedCVAEClient(NumPyClient):
                 optimizer_strategy="adam",
             )
 
-            results.update(
-                {
-                    "synthetic_data_train_loss": train_results["train_loss"],
-                    "synthetic_data_train_accuracy": train_results["train_accuracy"],
-                }
+            loss, accuracy = (
+                train_results["train_loss"],
+                train_results["train_accuracy"],
             )
-
-            test_result = train_net(
-                net=self.net,
-                trainloader=train_dataloader,
-                testloader=val_dataloader,
-                epochs=1,
-                learning_rate=self.net_learning_rate,
-                device=self.device,
-                dataset_input_feature=self.dataset_input_feature,
-                dataset_target_feature=self.dataset_target_feature,
-                optimizer_strategy="adam",
-            )
-
-            loss, accuracy = test_result["train_loss"], test_result["train_accuracy"]
 
         elif current_round > metadata["num_classes"]:
             set_weights(self.net, parameters)
 
-        loss, accuracy = test_net(
-            self.net,
-            test_dataloader,
-            self.device,
-            self.dataset_input_feature,
-            self.dataset_target_feature,
-        )
+            loss, accuracy = test_net(
+                self.net,
+                test_dataloader,
+                self.device,
+                self.dataset_input_feature,
+                self.dataset_target_feature,
+            )
 
         results.update(
             {
@@ -418,7 +390,6 @@ class FlowerHFedCVAEClient(NumPyClient):
         self.logger.info("results %s", results)
 
         self.net.to("cpu")
-        self.vae.to("cpu")
 
         torch.cuda.empty_cache()
 
