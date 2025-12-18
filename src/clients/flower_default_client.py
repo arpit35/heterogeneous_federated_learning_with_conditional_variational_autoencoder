@@ -4,15 +4,13 @@ import torch
 from flwr.client import NumPyClient
 
 from src.data_loader import DataLoader
-from src.ml_models.cnn import CNN, cnn_config
-from src.ml_models.h_fed_pfs import FPN, Adapter
-from src.ml_models.train_h_fed_pfs import train_h_fed_pfs
-from src.ml_models.train_net import test_net
+from src.ml_models.cnn import CNN
+from src.ml_models.train_net import test_net, train_net
 from src.ml_models.utils import get_device, get_weights, set_weights
 from src.utils.logger import get_logger
 
 
-class FlowerHFedPFSClient(NumPyClient):
+class FlowerDefaultClient(NumPyClient):
     def __init__(
         self,
         client_number,
@@ -23,6 +21,7 @@ class FlowerHFedPFSClient(NumPyClient):
         model_folder_path,
         dataset_input_feature,
         dataset_target_feature,
+        cnn_type,
     ):
         super().__init__()
         self.client_number = client_number
@@ -41,13 +40,9 @@ class FlowerHFedPFSClient(NumPyClient):
         )
         self.dataset_input_feature = dataset_input_feature
         self.dataset_target_feature = dataset_target_feature
+        self.cnn_type = cnn_type
 
-        self.cnn_type = list(cnn_config.keys())[
-            int(client_number + 1) % len(cnn_config.keys())
-        ]
         self.net = CNN(cnn_type=self.cnn_type)
-        self.fpn = FPN()
-        self.adapter = Adapter()
 
         self.device = get_device()
 
@@ -55,33 +50,13 @@ class FlowerHFedPFSClient(NumPyClient):
         self.logger = get_logger(f"{__name__}_Client_{client_number}", client_number)
         self.logger.info("Client %s initiated", self.client_number)
 
-    def _set_weights_from_disk(self, model):
-        if model == "net":
-            self.net.load_state_dict(
-                torch.load(
-                    self.client_model_folder_path + "/model.pth",
-                    map_location="cpu",
-                )
-            )
-        if model == "fpn":
-            self.fpn.load_state_dict(
-                torch.load(
-                    self.client_model_folder_path + "/fpn.pth",
-                    map_location="cpu",
-                )
-            )
-
     def fit(self, parameters, config):
         # Fetching configuration settings from the server for the fit operation (server.configure_fit)
         current_round = int(config.get("current_round", 0))
 
         self.logger.info("current_round %s", current_round)
 
-        set_weights(self.adapter, parameters)
-
-        if current_round != 1:
-            self._set_weights_from_disk("net")
-            self._set_weights_from_disk("fpn")
+        set_weights(self.net, parameters)
 
         dataloader = DataLoader(
             dataset_input_feature=self.dataset_input_feature,
@@ -103,10 +78,8 @@ class FlowerHFedPFSClient(NumPyClient):
         results = {"client_number": self.client_number}
 
         results.update(
-            train_h_fed_pfs(
+            train_net(
                 net=self.net,
-                fpn=self.fpn,
-                adapter=self.adapter,
                 trainloader=train_dataloader,
                 testloader=val_dataloader,
                 epochs=self.net_epochs,
@@ -117,21 +90,15 @@ class FlowerHFedPFSClient(NumPyClient):
                 optimizer_strategy="sgd",
             )
         )
-        # Save the trained model to disk
-        os.makedirs(self.client_model_folder_path, exist_ok=True)
-        torch.save(self.net.state_dict(), self.client_model_folder_path + "/model.pth")
-        torch.save(self.fpn.state_dict(), self.client_model_folder_path + "/fpn.pth")
 
         self.logger.info("results %s", results)
 
         self.net.to("cpu")
-        self.fpn.to("cpu")
-        self.adapter.to("cpu")
 
         torch.cuda.empty_cache()
 
         return (
-            get_weights(self.adapter),
+            get_weights(self.net),
             len(train_dataloader.dataset),
             results,
         )
@@ -141,24 +108,22 @@ class FlowerHFedPFSClient(NumPyClient):
 
         self.logger.info("current_round %s", current_round)
 
-        self._set_weights_from_disk("net")
+        set_weights(self.net, parameters)
 
         dataloader = DataLoader(
             dataset_input_feature=self.dataset_input_feature,
             dataset_target_feature=self.dataset_target_feature,
         )
 
-        val_dataloader = dataloader.load_dataset_from_disk(
-            "val_data",
-            self.client_data_folder_path,
-            self.batch_size,
+        test_dataloader = dataloader.load_test_dataset_from_disk(
+            self.dataset_folder_path, self.batch_size
         )
 
         results = {"client_number": self.client_number}
 
         loss, acc = test_net(
             net=self.net,
-            testloader=val_dataloader,
+            testloader=test_dataloader,
             device=self.device,
             dataset_input_feature=self.dataset_input_feature,
             dataset_target_feature=self.dataset_target_feature,
@@ -169,13 +134,11 @@ class FlowerHFedPFSClient(NumPyClient):
         self.logger.info("results %s", results)
 
         self.net.to("cpu")
-        self.fpn.to("cpu")
-        self.adapter.to("cpu")
 
         torch.cuda.empty_cache()
 
         return (
             loss,
-            len(val_dataloader.dataset),
+            len(test_dataloader.dataset),
             results,
         )

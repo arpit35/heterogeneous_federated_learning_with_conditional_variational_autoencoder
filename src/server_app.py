@@ -67,10 +67,6 @@ class CustomFedAvg(FedAvg):
 
         print("fit_ins.config", config)
 
-        if self.mode == "HFedCVAE" and server_round == metadata["num_classes"] + 1:
-            ndarrays = get_weights(CNN(cnn_type=self.cnn_type))
-            parameters = ndarrays_to_parameters(ndarrays)
-
         fit_ins = FitIns(parameters, config)
 
         # Sample clients
@@ -173,8 +169,12 @@ def server_fn(context: Context):
     mode = context.run_config.get("mode")
     cnn_type = context.run_config.get("cnn-type")
 
+    ndarrays = get_weights(CNN(cnn_type=str(cnn_type)))
+    initial_parameters = ndarrays_to_parameters(ndarrays)
+
     # Define the strategy
     strategy = CustomFedAvg(
+        initial_parameters=initial_parameters,
         fraction_evaluate=fraction_evaluate,
         evaluate_metrics_aggregation_fn=weighted_average,
         num_of_clients=num_of_clients,

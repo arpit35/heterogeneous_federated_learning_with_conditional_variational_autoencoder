@@ -29,7 +29,7 @@ samples-per-class = 1000
 prepare-dataset = false
 # cnn1, cnn2, cnn3, cnn4, cnn5
 cnn-type = "cnn1"
-# HFedCVAE, classic
+# HFedCVAE, default
 mode = "HFedCVAE"
 
 # Paths

@@ -4,8 +4,6 @@ import torch
 from flwr.client import NumPyClient
 from flwr.common import NDArrays
 from PIL import Image
-from torch.utils.data import ConcatDataset
-from torch.utils.data import DataLoader as TorchDataLoader
 
 from src.data_loader import DataLoader
 from src.ml_models.cnn import CNN
@@ -207,6 +205,13 @@ class FlowerHFedCVAEClient(NumPyClient):
 
         if current_round <= metadata["num_classes"]:
 
+            if current_round == 1:
+                set_weights(self.net, parameters)
+                os.makedirs(self.client_model_folder_path, exist_ok=True)
+                torch.save(
+                    self.net.state_dict(), self.client_model_folder_path + "/model.pth"
+                )
+
             target_class = current_round - 1
 
             train_dataloader = dataloader.load_dataset_from_disk(
@@ -241,7 +246,7 @@ class FlowerHFedCVAEClient(NumPyClient):
             data = self._create_synthetic_data(label=target_class)
 
         elif current_round == metadata["num_classes"] + 1:
-            set_weights(self.net, parameters)
+            self._set_weights_from_disk("net")
 
             train_dataloader = dataloader.load_dataset_from_disk(
                 "train_data",
