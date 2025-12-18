@@ -397,6 +397,9 @@ class FlowerHFedCVAEClient(NumPyClient):
 
             loss, accuracy = test_result["train_loss"], test_result["train_accuracy"]
 
+        elif current_round > metadata["num_classes"]:
+            set_weights(self.net, parameters)
+
         loss, accuracy = test_net(
             self.net,
             test_dataloader,

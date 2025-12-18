@@ -2,7 +2,8 @@ from flwr.client import ClientApp
 from flwr.common import Context
 
 from src.clients.flower_h_fed_cvae_client import FlowerHFedCVAEClient
-from src.clients.flower_h_fed_pfs_client import FlowerHFedPFSClient
+
+# from src.clients.flower_h_fed_pfs_client import FlowerHFedPFSClient
 
 
 def client_fn(context: Context):
@@ -34,17 +35,17 @@ def client_fn(context: Context):
             samples_per_class,
             cnn_type,
         ).to_client()
-    elif mode == "classic":
-        return FlowerHFedPFSClient(
-            client_number,
-            batch_size,
-            net_epochs,
-            net_learning_rate,
-            dataset_folder_path,
-            model_folder_path,
-            dataset_input_feature,
-            dataset_target_feature,
-        ).to_client()
+    # elif mode == "classic":
+    #     return FlowerHFedPFSClient(
+    #         client_number,
+    #         batch_size,
+    #         net_epochs,
+    #         net_learning_rate,
+    #         dataset_folder_path,
+    #         model_folder_path,
+    #         dataset_input_feature,
+    #         dataset_target_feature,
+    #     ).to_client()
     else:
         raise ValueError(
             f"Unsupported mode: {mode}. This client only supports 'vqe' mode."

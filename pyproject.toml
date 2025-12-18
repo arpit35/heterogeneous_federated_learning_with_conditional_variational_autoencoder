@@ -24,7 +24,7 @@ net-epochs = 3
 vae-epochs = 12
 batch-size = 64
 data-loader-alpha = 0.1
-num-server-rounds = 300
+num-server-rounds = 1
 samples-per-class = 1000
 prepare-dataset = false
 # cnn1, cnn2, cnn3, cnn4, cnn5
@@ -38,8 +38,8 @@ dataset-folder-path = "src/clients_dataset"
 plots-folder-path = "src/plots"
 model-folder-path = "src/clients_models"
 
-# Dataset and Model Configuration
-dataset-name = "fashion_mnist"
+# Dataset and Model Configuration - mnist, fashion_mnist, cifar10(dataset-input-feature=img)
+dataset-name = "mnist"
 dataset-input-feature = "image"
 dataset-target-feature = "label"
 

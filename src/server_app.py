@@ -112,11 +112,6 @@ class CustomFedAvg(FedAvg):
             if not self.accept_failures and failures:
                 return None, {}
 
-            if server_round == 1:
-                for _, fit_res in results:
-                    print("fit_res.metrics", fit_res.metrics)
-                return None, {}
-
             for _, fit_res in results:
                 print("fit_res.metrics", fit_res.metrics)
                 data = parameters_to_ndarrays(fit_res.parameters)
@@ -159,7 +154,7 @@ class CustomFedAvg(FedAvg):
 
             results_file_path = os.path.join(
                 self.plots_folder_path,
-                f"{self.dataset_name}_results.json",
+                f"{self.dataset_name}_{self.mode}_results.json",
             )
 
             with open(results_file_path, "w", encoding="utf-8") as file:
@@ -187,7 +182,7 @@ def server_fn(context: Context):
         plots_folder_path=plots_folder_path,
         dataset_name=dataset_name,
         mode=mode,
-        cnn_type,
+        cnn_type=cnn_type,
     )
     config = ServerConfig(num_rounds=int(context.run_config["num-server-rounds"]))
 

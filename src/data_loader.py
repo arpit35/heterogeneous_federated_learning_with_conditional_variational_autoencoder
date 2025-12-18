@@ -77,12 +77,12 @@ class DataLoader:
 
         num_classes = len(set(all_labels))
 
-        base_resolution = 32 * 32
+        base_resolution = 28 * 28
         scale = (height * width) / base_resolution
-        h_dim = int(128 * scale**0.5)
-        res_h_dim = int(32 * scale**0.5)
-        n_res_layers = max(int(2 * scale**0.5), 1)
-        latent_dim = int(64 * scale**0.5)
+        h_dim = int(128 * scale)
+        res_h_dim = int(32 * scale)
+        n_res_layers = max(int(2 * scale), 2)
+        latent_dim = int(64 * scale)
 
         # Save metadata
         return {
@@ -94,7 +94,6 @@ class DataLoader:
             "res_h_dim": res_h_dim,
             "n_res_layers": n_res_layers,
             "latent_dim": latent_dim,
-            "f_dim": 500,
         }
 
     def save_datasets_to_disk(
