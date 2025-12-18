@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from typing import List, Tuple
 
 import numpy as np
@@ -56,8 +57,13 @@ class CustomFedAvg(FedAvg):
         self.synthetic_data = []
         self.synthetic_labels = []
         self.client_plot = {}
+        self.round_times = {}  # Dictionary to store round timing information
+        self.round_start_time = None  # Store start time of current round
 
     def configure_fit(self, server_round, parameters, client_manager):
+        # Record start time of this round
+        self.round_start_time = time.time()
+
         # Waiting till all clients are connected
         client_manager.wait_for(self.num_of_clients, timeout=300)
 
@@ -80,6 +86,11 @@ class CustomFedAvg(FedAvg):
         return [(client, fit_ins) for client in clients]
 
     def configure_evaluate(self, server_round, parameters, client_manager):
+        # Calculate and record the time taken in this round
+        if self.round_start_time is not None:
+            elapsed_time = time.time() - self.round_start_time
+            self.round_times[server_round] = elapsed_time
+
         # Parameters and config
         config: dict[str, Scalar] = {
             "current_round": server_round,
@@ -150,11 +161,19 @@ class CustomFedAvg(FedAvg):
 
             results_file_path = os.path.join(
                 self.plots_folder_path,
-                f"{self.dataset_name}_{self.mode}_results.json",
+                f"{self.dataset_name}_{self.mode}_{self.num_of_clients}_results.json",
             )
 
             with open(results_file_path, "w", encoding="utf-8") as file:
                 json.dump(self.client_plot, file)
+
+            round_times_file_path = os.path.join(
+                self.plots_folder_path,
+                f"{self.dataset_name}_{self.mode}_{self.num_of_clients}_round_times.json",
+            )
+
+            with open(round_times_file_path, "w", encoding="utf-8") as file:
+                json.dump(self.round_times, file)
 
         return super().aggregate_evaluate(server_round, results, failures)
 

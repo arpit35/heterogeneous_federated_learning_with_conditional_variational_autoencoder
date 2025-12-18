@@ -22,15 +22,15 @@ net-learning-rate = 0.001
 fraction-evaluate = 1
 net-epochs = 3
 vae-epochs = 12
-batch-size = 64
+batch-size = 128
 data-loader-alpha = 0.1
-num-server-rounds = 100
+num-server-rounds = 200
 samples-per-class = 1000
 prepare-dataset = false
 # cnn1, cnn2, cnn3, cnn4, cnn5
 cnn-type = "cnn1"
 # HFedCVAE, default
-mode = "HFedCVAE"
+mode = "default"
 
 # Paths
 logs-folder-path = "log"
