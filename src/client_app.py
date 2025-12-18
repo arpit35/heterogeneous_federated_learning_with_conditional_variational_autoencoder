@@ -1,8 +1,8 @@
 from flwr.client import ClientApp
 from flwr.common import Context
 
+from src.clients.flower_h_fed_cvae_client import FlowerHFedCVAEClient
 from src.clients.flower_h_fed_pfs_client import FlowerHFedPFSClient
-from src.clients.flower_vae_client import FlowerVAEClient
 
 
 def client_fn(context: Context):
@@ -18,9 +18,10 @@ def client_fn(context: Context):
     dataset_target_feature = context.run_config.get("dataset-target-feature")
     samples_per_class = context.run_config.get("samples-per-class")
     mode = context.run_config.get("mode")
+    cnn_type = context.run_config.get("cnn-type")
 
-    if mode == "vqe":
-        return FlowerVAEClient(
+    if mode == "HFedCVAE":
+        return FlowerHFedCVAEClient(
             client_number,
             batch_size,
             net_epochs,
@@ -31,8 +32,9 @@ def client_fn(context: Context):
             dataset_input_feature,
             dataset_target_feature,
             samples_per_class,
+            cnn_type,
         ).to_client()
-    elif mode == "HFedPFS":
+    elif mode == "classic":
         return FlowerHFedPFSClient(
             client_number,
             batch_size,

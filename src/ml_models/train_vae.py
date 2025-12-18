@@ -61,6 +61,9 @@ def train_vae(
     avg_recon_loss = total_recon_loss / total_samples if total_samples > 0 else 0
     avg_kl_loss = total_kl_loss / total_samples if total_samples > 0 else 0
 
+    del vae_optimizer
+    torch.cuda.empty_cache()
+
     return {
         "loss": avg_loss,
         "recon_loss": avg_recon_loss,

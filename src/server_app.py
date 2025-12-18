@@ -15,8 +15,9 @@ from flwr.common import (
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from flwr.server.strategy import FedAvg
 
-from src.ml_models.h_fed_pfs import Adapter
+from src.ml_models.cnn import CNN
 from src.ml_models.utils import get_weights
+from src.scripts.helper import metadata
 
 
 # Define metric aggregation function
@@ -42,6 +43,7 @@ class CustomFedAvg(FedAvg):
         plots_folder_path,
         dataset_name,
         mode,
+        cnn_type,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -50,6 +52,7 @@ class CustomFedAvg(FedAvg):
         self.plots_folder_path = plots_folder_path
         self.dataset_name = dataset_name
         self.mode = mode
+        self.cnn_type = cnn_type
         self.synthetic_data = []
         self.synthetic_labels = []
         self.client_plot = {}
@@ -63,6 +66,10 @@ class CustomFedAvg(FedAvg):
         }
 
         print("fit_ins.config", config)
+
+        if self.mode == "HFedCVAE" and server_round == metadata["num_classes"] + 1:
+            ndarrays = get_weights(CNN(cnn_type=self.cnn_type))
+            parameters = ndarrays_to_parameters(ndarrays)
 
         fit_ins = FitIns(parameters, config)
 
@@ -97,41 +104,42 @@ class CustomFedAvg(FedAvg):
         return [(client, evaluate_ins) for client in clients]
 
     def aggregate_fit(self, server_round, results, failures):
-        if self.mode == "HFedPFS":
+
+        if self.mode == "HFedCVAE" and server_round <= metadata["num_classes"]:
+            if not results:
+                return None, {}
+            # Do not aggregate if there are failures and failures are not accepted
+            if not self.accept_failures and failures:
+                return None, {}
+
+            if server_round == 1:
+                for _, fit_res in results:
+                    print("fit_res.metrics", fit_res.metrics)
+                return None, {}
+
             for _, fit_res in results:
                 print("fit_res.metrics", fit_res.metrics)
+                data = parameters_to_ndarrays(fit_res.parameters)
 
-            return super().aggregate_fit(server_round, results, failures)
+                if len(data) != 2:
+                    continue
+                self.synthetic_data.append(data[0])
+                self.synthetic_labels.append(data[1])
 
-        if not results:
-            return None, {}
-        # Do not aggregate if there are failures and failures are not accepted
-        if not self.accept_failures and failures:
-            return None, {}
-
-        if server_round == 1:
-            for _, fit_res in results:
-                print("fit_res.metrics", fit_res.metrics)
-            return None, {}
+            return (
+                ndarrays_to_parameters(
+                    [
+                        np.concatenate(self.synthetic_data, axis=0),
+                        np.concatenate(self.synthetic_labels, axis=0),
+                    ]
+                ),
+                {},
+            )
 
         for _, fit_res in results:
             print("fit_res.metrics", fit_res.metrics)
-            data = parameters_to_ndarrays(fit_res.parameters)
 
-            if len(data) != 2:
-                continue
-            self.synthetic_data.append(data[0])
-            self.synthetic_labels.append(data[1])
-
-        return (
-            ndarrays_to_parameters(
-                [
-                    np.concatenate(self.synthetic_data, axis=0),
-                    np.concatenate(self.synthetic_labels, axis=0),
-                ]
-            ),
-            {},
-        )
+        return super().aggregate_fit(server_round, results, failures)
 
     def aggregate_evaluate(self, server_round, results, failures):
 
@@ -168,11 +176,7 @@ def server_fn(context: Context):
     plots_folder_path = context.run_config.get("plots-folder-path")
     dataset_name = context.run_config.get("dataset-name")
     mode = context.run_config.get("mode")
-
-    initial_parameters = None
-    if mode == "HFedPFS":
-        adapter_ndarrays = get_weights(Adapter())
-        initial_parameters = ndarrays_to_parameters(adapter_ndarrays)
+    cnn_type = context.run_config.get("cnn-type")
 
     # Define the strategy
     strategy = CustomFedAvg(
@@ -183,7 +187,7 @@ def server_fn(context: Context):
         plots_folder_path=plots_folder_path,
         dataset_name=dataset_name,
         mode=mode,
-        initial_parameters=initial_parameters,
+        cnn_type,
     )
     config = ServerConfig(num_rounds=int(context.run_config["num-server-rounds"]))
 
