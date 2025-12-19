@@ -49,7 +49,9 @@ class DataLoader:
             dataset=self.dataset_name, partitioners={"train": partitioner}
         )
 
-    def _get_dataset_metadata(self, fds: FederatedDataset, num_clients: int):
+    def _get_dataset_metadata(
+        self, fds: FederatedDataset, num_clients: int, vae_scale_multiplier: float
+    ):
         # Take one full partition to extract dataset-wide metadata
         sample_partition = fds.load_partition(0)
         sample_example = sample_partition[0]
@@ -79,6 +81,7 @@ class DataLoader:
 
         base_resolution = 28 * 28
         scale = (height * width) / base_resolution
+        scale *= vae_scale_multiplier
         h_dim = int(128 * scale)
         res_h_dim = int(32 * scale)
         n_res_layers = max(int(2 * scale), 2)
@@ -101,11 +104,14 @@ class DataLoader:
         num_clients: int,
         alpha: float,
         dataset_folder_path: str,
+        vae_scale_multiplier: float,
     ):
         fds = self._load_partition(num_clients, alpha)
 
         # Get dataset metadata
-        save_metadata(self._get_dataset_metadata(fds, num_clients))
+        save_metadata(
+            self._get_dataset_metadata(fds, num_clients, vae_scale_multiplier)
+        )
 
         for client_id in range(num_clients):
             client_dataset_folder_path = os.path.join(
