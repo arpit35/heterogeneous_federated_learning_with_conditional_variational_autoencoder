@@ -10,7 +10,7 @@ from src.ml_models.cnn import CNN
 from src.ml_models.train_net import test_net, train_net
 from src.ml_models.train_vae import train_vae
 from src.ml_models.utils import get_device, get_weights, set_weights
-from src.ml_models.vae import vae
+from src.ml_models.vae import VAE
 from src.scripts.helper import metadata
 from src.utils.logger import get_logger
 
@@ -51,8 +51,8 @@ class FlowerHFedCVAEClient(NumPyClient):
         self.samples_per_class = samples_per_class
         self.cnn_type = cnn_type
 
-        self.net = CNN(cnn_type=self.cnn_type)
-        self.vae = vae()
+        self.net = None
+        self.vae = None
 
         self.device = get_device()
 
@@ -206,11 +206,15 @@ class FlowerHFedCVAEClient(NumPyClient):
         if current_round <= metadata["num_classes"]:
 
             if current_round == 1:
+                self.net = CNN(cnn_type=self.cnn_type)
+
                 set_weights(self.net, parameters)
                 os.makedirs(self.client_model_folder_path, exist_ok=True)
                 torch.save(
                     self.net.state_dict(), self.client_model_folder_path + "/model.pth"
                 )
+
+                self.net.to("cpu")
 
             target_class = current_round - 1
 
@@ -233,6 +237,8 @@ class FlowerHFedCVAEClient(NumPyClient):
                     results,
                 )
 
+            self.vae = VAE()
+
             results.update(
                 train_vae(
                     vae=self.vae,
@@ -245,7 +251,11 @@ class FlowerHFedCVAEClient(NumPyClient):
 
             data = self._create_synthetic_data(label=target_class)
 
+            self.vae.to("cpu")
+
         elif current_round == metadata["num_classes"] + 1:
+            self.net = CNN(cnn_type=self.cnn_type)
+
             self._set_weights_from_disk("net")
 
             train_dataloader = dataloader.load_dataset_from_disk(
@@ -288,7 +298,10 @@ class FlowerHFedCVAEClient(NumPyClient):
 
             data = get_weights(self.net)
 
+            self.net.to("cpu")
+
         elif current_round > metadata["num_classes"] + 1:
+            self.net = CNN(cnn_type=self.cnn_type)
 
             set_weights(self.net, parameters)
 
@@ -320,10 +333,9 @@ class FlowerHFedCVAEClient(NumPyClient):
 
             data = get_weights(self.net)
 
-        self.logger.info("results %s", results)
+            self.net.to("cpu")
 
-        self.net.to("cpu")
-        self.vae.to("cpu")
+        self.logger.info("results %s", results)
 
         torch.cuda.empty_cache()
 
@@ -334,6 +346,8 @@ class FlowerHFedCVAEClient(NumPyClient):
         )
 
     def evaluate(self, parameters, config):
+        self.net = CNN(cnn_type=self.cnn_type)
+
         current_round = config.get("current_round", -1)
 
         self.logger.info("current_round %s", current_round)
@@ -352,6 +366,7 @@ class FlowerHFedCVAEClient(NumPyClient):
         loss, accuracy = 0, 0
 
         if current_round <= metadata["num_classes"]:
+
             synthetic_dataloader = dataloader.load_dataset_from_ndarray(
                 parameters,
                 self.batch_size,

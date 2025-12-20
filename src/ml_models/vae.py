@@ -6,7 +6,7 @@ from src.ml_models.encoder import Encoder
 from src.scripts.helper import metadata
 
 
-class vae(nn.Module):
+class VAE(nn.Module):
     def __init__(
         self,
         h_dim=metadata["h_dim"],
