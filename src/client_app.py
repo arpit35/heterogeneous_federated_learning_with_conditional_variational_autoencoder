@@ -20,7 +20,7 @@ def client_fn(context: Context):
     mode = context.run_config.get("mode")
     cnn_type = context.run_config.get("cnn-type")
 
-    if mode == "HFedCVAE":
+    if mode == "HFedCVAE" or mode == "HFedCVAEGAN":
         return FlowerHFedCVAEClient(
             client_number,
             batch_size,
@@ -33,6 +33,7 @@ def client_fn(context: Context):
             dataset_target_feature,
             samples_per_class,
             cnn_type,
+            mode,
         ).to_client()
     elif mode == "default":
         return FlowerDefaultClient(

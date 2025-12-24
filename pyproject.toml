@@ -21,17 +21,17 @@ num-of-clients = 5
 net-learning-rate = 0.001
 fraction-evaluate = 1
 net-epochs = 3
-vae-epochs = 12
+vae-epochs = 20
 batch-size = 64
 data-loader-alpha = 0.1
-num-server-rounds = 100
+num-server-rounds = 11
 samples-per-class = 1000
 vae-scale-multiplier = 1.0
 prepare-dataset = false
 # cnn1, cnn2, cnn3, cnn4, cnn5
 cnn-type = "cnn1"
-# HFedCVAE, default
-mode = "HFedCVAE"
+# HFedCVAE, default, HFedCVAEGAN
+mode = "HFedCVAEGAN"
 
 # Paths
 logs-folder-path = "log"
@@ -40,7 +40,7 @@ plots-folder-path = "src/plots"
 model-folder-path = "src/clients_models"
 
 # Dataset and Model Configuration - mnist, fashion_mnist, cifar10(dataset-input-feature=img)
-dataset-name = "mnist"
+dataset-name = "fashion_mnist"
 dataset-input-feature = "image"
 dataset-target-feature = "label"
 

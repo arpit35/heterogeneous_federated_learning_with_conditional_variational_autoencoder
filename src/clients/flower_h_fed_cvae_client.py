@@ -2,14 +2,19 @@ import os
 
 import torch
 from flwr.client import NumPyClient
-from flwr.common import NDArrays
 from PIL import Image
 
 from src.data_loader import DataLoader
 from src.ml_models.cnn import CNN
+from src.ml_models.discriminator import Discriminator
 from src.ml_models.train_net import test_net, train_net
 from src.ml_models.train_vae import train_vae
-from src.ml_models.utils import get_device, get_weights, set_weights
+from src.ml_models.utils import (
+    create_synthetic_data,
+    get_device,
+    get_weights,
+    set_weights,
+)
 from src.ml_models.vae import VAE
 from src.scripts.helper import metadata
 from src.utils.logger import get_logger
@@ -29,6 +34,7 @@ class FlowerHFedCVAEClient(NumPyClient):
         dataset_target_feature,
         samples_per_class,
         cnn_type,
+        mode,
     ):
         super().__init__()
         self.client_number = client_number
@@ -50,9 +56,11 @@ class FlowerHFedCVAEClient(NumPyClient):
         self.dataset_target_feature = dataset_target_feature
         self.samples_per_class = samples_per_class
         self.cnn_type = cnn_type
+        self.mode = mode
 
         self.net = None
         self.vae = None
+        self.discriminator = None
 
         self.device = get_device()
 
@@ -149,45 +157,6 @@ class FlowerHFedCVAEClient(NumPyClient):
             f"Saved {sum(image_counter.values())} synthetic images to {round_dir}"
         )
 
-    def _create_synthetic_data(self, label) -> NDArrays:
-        self.vae.eval()
-        self.vae.to(self.device)
-
-        # Create synthetic data in memory (or in batches if memory is constrained)
-        synthetic_data = []
-        synthetic_labels = []
-
-        # Generate in batches to be memory efficient
-        for start_idx in range(0, self.samples_per_class, self.batch_size):
-            current_batch_size = min(
-                self.batch_size, self.samples_per_class - start_idx
-            )
-
-            # Sample z
-            z = torch.randn(
-                current_batch_size, metadata["latent_dim"], device=self.device
-            )
-
-            # Decode
-            with torch.no_grad():
-                expanded = self.vae.fc_expand(z)
-                expanded = expanded.view(current_batch_size, *self.vae.enc_shape)
-                images = self.vae.decoder(expanded)
-
-            synthetic_data.append(images.cpu())
-            synthetic_labels.append(
-                torch.tensor(
-                    [label for _ in range(current_batch_size)],
-                    dtype=torch.long,
-                ).cpu()
-            )
-
-        # Concatenate all batches
-        synthetic_data = torch.cat(synthetic_data, dim=0)
-        synthetic_labels = torch.cat(synthetic_labels, dim=0)
-
-        return [synthetic_data.numpy(), synthetic_labels.numpy()]
-
     def fit(self, parameters, config):
         # Fetching configuration settings from the server for the fit operation (server.configure_fit)
         current_round = int(config.get("current_round", 0))
@@ -238,10 +207,13 @@ class FlowerHFedCVAEClient(NumPyClient):
                 )
 
             self.vae = VAE()
+            if self.mode == "HFedCVAEGAN":
+                self.discriminator = Discriminator()
 
             results.update(
                 train_vae(
                     vae=self.vae,
+                    discriminator=self.discriminator,
                     trainloader=train_dataloader,
                     epochs=self.vae_epochs,
                     device=self.device,
@@ -249,7 +221,13 @@ class FlowerHFedCVAEClient(NumPyClient):
                 )
             )
 
-            data = self._create_synthetic_data(label=target_class)
+            data = create_synthetic_data(
+                vae=self.vae,
+                label=target_class,
+                device=self.device,
+                samples_per_class=self.samples_per_class,
+                batch_size=self.batch_size,
+            )
 
             self.vae.to("cpu")
 
