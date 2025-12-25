@@ -4,8 +4,8 @@ import torch.nn as nn
 from src.scripts.helper import metadata
 
 
-def train_vae(
-    vae,
+def train_gan(
+    generator,
     discriminator,
     trainloader,
     epochs,
@@ -13,20 +13,14 @@ def train_vae(
     dataset_input_feature,
 ):
     """Train VQVAE and PixelCNN sequentially for better convergence."""
-    # vae.fc_expand.to(device)
-    # vae.decoder.to(device)
+    generator.to(device)
     discriminator.to(device)
-    vae.to(device)
 
-    # vae_fc_expand_optimizer = torch.optim.Adam(vae.fc_expand.parameters())
-    # vae_decoder_optimizer = torch.optim.Adam(vae.decoder.parameters())
+    generator_optimizer = torch.optim.Adam(generator.parameters())
     discriminator_optimizer = torch.optim.Adam(discriminator.parameters())
-    vae_optimizer = torch.optim.Adam(vae.parameters())
 
-    # vae.fc_expand.train()
-    # vae.decoder.train()
+    generator.train()
     discriminator.train()
-    vae.train()
 
     total_loss = 0
     total_discriminator_loss = 0
@@ -51,12 +45,12 @@ def train_vae(
             discriminator_real_loss = bce_loss(real_pred, valid)
 
             # Fake images
-            # z = torch.randn(batch_size, metadata["latent_dim"], device=device)
-            z = torch.randn(batch_size, 100, device=device)
-            # expanded = vae.fc_expand(z)
-            # expanded = expanded.view(batch_size, *vae.enc_shape)
-            # gen_imgs = vae.decoder(expanded)
-            gen_imgs = vae(z)
+            z = torch.randn(
+                batch_size,
+                metadata["generator_parameters"]["latent_dim"],
+                device=device,
+            )
+            gen_imgs = generator(z)
 
             fake_pred = discriminator(gen_imgs.detach())
             discriminator_fake_loss = bce_loss(fake_pred, fake)
@@ -66,16 +60,12 @@ def train_vae(
             discriminator_optimizer.step()
 
             # Generate images and calculate loss
-            # vae_fc_expand_optimizer.zero_grad()
-            # vae_decoder_optimizer.zero_grad()
-            vae_optimizer.zero_grad()
+            generator_optimizer.zero_grad()
 
             validity = discriminator(gen_imgs)
             generator_loss = bce_loss(validity, valid)
             generator_loss.backward()
-            # vae_fc_expand_optimizer.step()
-            # vae_decoder_optimizer.step()
-            vae_optimizer.step()
+            generator_optimizer.step()
 
             total_discriminator_loss += discriminator_loss.item() * batch_size
             total_generator_loss += generator_loss.item() * batch_size
@@ -90,10 +80,8 @@ def train_vae(
         total_generator_loss / total_samples if total_samples > 0 else 0
     )
 
-    # del vae_fc_expand_optimizer
-    # del vae_decoder_optimizer
+    del generator_optimizer
     del discriminator_optimizer
-    del vae_optimizer
     torch.cuda.empty_cache()
 
     return {

@@ -49,6 +49,8 @@ def create_synthetic_data(
 
         if mode == "HFedCVAE":
             latent_dim = metadata["vae_parameters"]["latent_dim"]
+        elif mode == "HFedCGAN":
+            latent_dim = metadata["generator_parameters"]["latent_dim"]
 
         # Sample z
         z = torch.randn(current_batch_size, latent_dim, device=device)
@@ -58,6 +60,9 @@ def create_synthetic_data(
                 expanded = model.fc_expand(z)
                 expanded = expanded.view(current_batch_size, *model.enc_shape)
                 images = model.decoder(expanded)
+        elif mode == "HFedCGAN":
+            with torch.no_grad():
+                images = model(z)
 
         synthetic_data.append(images.cpu())
         synthetic_labels.append(
@@ -75,4 +80,4 @@ def create_synthetic_data(
 
 
 def count_params(model):
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+    return sum(p.numel() for p in model.parameters())

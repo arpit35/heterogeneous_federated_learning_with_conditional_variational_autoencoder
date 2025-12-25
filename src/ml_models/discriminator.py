@@ -1,33 +1,52 @@
 import torch
 import torch.nn as nn
 
-from src.ml_models.residual import ResidualStack
 from src.scripts.helper import metadata
 
 
 class Discriminator(nn.Module):
     def __init__(
         self,
+        block_repeat,
+        n_block_layers,
+        h_dim,
         in_dim=metadata["num_channels"],
-        h_dim=metadata["h_dim"] // 4,
-        n_res_layers=max(metadata["n_res_layers"] // 4, 1),
-        res_h_dim=metadata["res_h_dim"] // 4,
     ):
         super(Discriminator, self).__init__()
-        kernel = 4
-        stride = 2
 
-        self.conv_stack = nn.Sequential(
-            nn.Conv2d(in_dim, h_dim // 2, kernel_size=kernel, stride=stride, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(h_dim // 2, h_dim, kernel_size=kernel, stride=stride, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(
-                h_dim, h_dim, kernel_size=kernel - 1, stride=stride - 1, padding=1
-            ),
-            nn.ReLU(),
-            ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers),
+        def discriminator_block(in_filters, out_filters, stride=2, bn=True):
+            block = [
+                nn.Conv2d(
+                    in_filters, out_filters, kernel_size=3, stride=stride, padding=1
+                ),
+                nn.LeakyReLU(0.2, inplace=True),
+                nn.Dropout2d(0.3),
+            ]
+            if bn:
+                block.append(nn.BatchNorm2d(out_filters, 0.8))
+
+            return block
+
+        block_h_dim = h_dim
+        discriminator_block_list = discriminator_block(
+            in_dim, block_h_dim, stride=1, bn=False
         )
+
+        for _ in range(n_block_layers):
+
+            if block_repeat > 1:
+                for _ in range(block_repeat - 1):
+                    discriminator_block_list.extend(
+                        discriminator_block(block_h_dim, block_h_dim, 1)
+                    )
+
+            discriminator_block_list.extend(
+                discriminator_block(block_h_dim, block_h_dim // 2)
+            )
+
+            block_h_dim = block_h_dim // 2
+
+        self.conv_stack = nn.Sequential(*discriminator_block_list)
 
         with torch.no_grad():
             dummy = torch.zeros(

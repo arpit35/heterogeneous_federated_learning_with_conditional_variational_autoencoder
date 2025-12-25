@@ -30,7 +30,7 @@ prepare-dataset = false
 # cnn1, cnn2, cnn3, cnn4, cnn5
 cnn-type = "cnn5"
 # HFedCVAE, HFedCGAN, HFedCVAEGAN, default, 
-mode = "HFedCVAE"
+mode = "HFedCGAN"
 
 # Paths
 logs-folder-path = "log"

@@ -1,7 +1,4 @@
-import numpy as np
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class ResidualLayer(nn.Module):
@@ -47,5 +44,4 @@ class ResidualStack(nn.Module):
     def forward(self, x):
         for layer in self.stack:
             x = layer(x)
-        x = F.relu(x)
         return x

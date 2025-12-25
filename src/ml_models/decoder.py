@@ -25,6 +25,7 @@ class Decoder(nn.Module):
             nn.ConvTranspose2d(
                 in_dim, h_dim, kernel_size=kernel - 1, stride=stride - 1, padding=1
             ),
+            nn.ReLU(),
             ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers),
             nn.ConvTranspose2d(
                 h_dim, h_dim // 2, kernel_size=kernel, stride=stride, padding=1
