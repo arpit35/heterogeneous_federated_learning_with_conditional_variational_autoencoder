@@ -31,10 +31,10 @@ def get_device():
 
 
 def create_synthetic_data(
-    vae, label, device, samples_per_class, batch_size
+    model, label, device, samples_per_class, batch_size, mode
 ) -> NDArrays:
-    vae.eval()
-    vae.to(device)
+    model.eval()
+    model.to(device)
 
     # Create synthetic data in memory (or in batches if memory is constrained)
     synthetic_data = []
@@ -44,14 +44,20 @@ def create_synthetic_data(
     for start_idx in range(0, samples_per_class, batch_size):
         current_batch_size = min(batch_size, samples_per_class - start_idx)
 
-        # Sample z
-        z = torch.randn(current_batch_size, metadata["latent_dim"], device=device)
+        latent_dim = 0
+        images = []
 
-        # Decode
-        with torch.no_grad():
-            expanded = vae.fc_expand(z)
-            expanded = expanded.view(current_batch_size, *vae.enc_shape)
-            images = vae.decoder(expanded)
+        if mode == "HFedCVAE":
+            latent_dim = metadata["vae_parameters"]["latent_dim"]
+
+        # Sample z
+        z = torch.randn(current_batch_size, latent_dim, device=device)
+
+        if mode == "HFedCVAE":
+            with torch.no_grad():
+                expanded = model.fc_expand(z)
+                expanded = expanded.view(current_batch_size, *model.enc_shape)
+                images = model.decoder(expanded)
 
         synthetic_data.append(images.cpu())
         synthetic_labels.append(

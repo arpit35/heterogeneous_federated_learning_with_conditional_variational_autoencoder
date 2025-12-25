@@ -6,7 +6,8 @@ from PIL import Image
 
 from src.data_loader import DataLoader
 from src.ml_models.cnn import CNN
-from src.ml_models.discriminator import Discriminator
+
+# from src.ml_models.discriminator import Discriminator
 from src.ml_models.train_net import test_net, train_net
 from src.ml_models.train_vae import train_vae
 from src.ml_models.utils import (
@@ -32,7 +33,6 @@ class FlowerHFedCVAEClient(NumPyClient):
         model_folder_path,
         dataset_input_feature,
         dataset_target_feature,
-        samples_per_class,
         cnn_type,
         mode,
     ):
@@ -54,7 +54,6 @@ class FlowerHFedCVAEClient(NumPyClient):
         )
         self.dataset_input_feature = dataset_input_feature
         self.dataset_target_feature = dataset_target_feature
-        self.samples_per_class = samples_per_class
         self.cnn_type = cnn_type
         self.mode = mode
 
@@ -187,12 +186,18 @@ class FlowerHFedCVAEClient(NumPyClient):
 
             target_class = current_round - 1
 
-            train_dataloader = dataloader.load_dataset_from_disk(
+            train_dataloader, original_data_length = dataloader.load_dataset_from_disk(
                 "train_data",
                 self.client_data_folder_path,
                 self.batch_size,
                 target_class=target_class,
                 upsample_amount=1000,
+            )
+
+            self.logger.info(
+                "Original data length for class %s: %s",
+                target_class,
+                original_data_length,
             )
 
             if train_dataloader is None:
@@ -206,30 +211,32 @@ class FlowerHFedCVAEClient(NumPyClient):
                     results,
                 )
 
-            self.vae = VAE()
             if self.mode == "HFedCVAEGAN":
                 self.discriminator = Discriminator()
 
-            results.update(
-                train_vae(
-                    vae=self.vae,
-                    discriminator=self.discriminator,
-                    trainloader=train_dataloader,
-                    epochs=self.vae_epochs,
-                    device=self.device,
-                    dataset_input_feature=self.dataset_input_feature,
+            if self.mode == "HFedCVAE":
+                self.vae = VAE(**metadata["vae_parameters"])
+                results.update(
+                    train_vae(
+                        vae=self.vae,
+                        trainloader=train_dataloader,
+                        epochs=self.vae_epochs,
+                        device=self.device,
+                        dataset_input_feature=self.dataset_input_feature,
+                    )
                 )
-            )
 
             data = create_synthetic_data(
-                vae=self.vae,
+                model=self.vae,
                 label=target_class,
                 device=self.device,
-                samples_per_class=self.samples_per_class,
+                samples_per_class=original_data_length,
                 batch_size=self.batch_size,
+                mode=self.mode,
             )
 
-            self.vae.to("cpu")
+            if self.vae:
+                self.vae.to("cpu")
 
         elif current_round == metadata["num_classes"] + 1:
             self.net = CNN(cnn_type=self.cnn_type)
@@ -252,8 +259,6 @@ class FlowerHFedCVAEClient(NumPyClient):
                 parameters,
                 self.batch_size,
             )
-
-            # self._save_synthetic_images(synthetic_dataloader, current_round)
 
             train_results = train_net(
                 net=self.net,
@@ -349,6 +354,8 @@ class FlowerHFedCVAEClient(NumPyClient):
                 parameters,
                 self.batch_size,
             )
+
+            self._save_synthetic_images(synthetic_dataloader, current_round)
 
             train_results = train_net(
                 net=self.net,

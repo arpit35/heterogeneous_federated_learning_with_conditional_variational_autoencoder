@@ -16,7 +16,6 @@ def client_fn(context: Context):
     model_folder_path = context.run_config.get("model-folder-path")
     dataset_input_feature = context.run_config.get("dataset-input-feature")
     dataset_target_feature = context.run_config.get("dataset-target-feature")
-    samples_per_class = context.run_config.get("samples-per-class")
     mode = context.run_config.get("mode")
     cnn_type = context.run_config.get("cnn-type")
 
@@ -31,7 +30,6 @@ def client_fn(context: Context):
             model_folder_path,
             dataset_input_feature,
             dataset_target_feature,
-            samples_per_class,
             cnn_type,
             mode,
         ).to_client()

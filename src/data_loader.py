@@ -164,8 +164,10 @@ class DataLoader:
         # Count samples
         num_samples = len(dataset)
 
-        # ---- 2) If < 100 samples, return None ----
+        # ---- 2) If < 100 samples, return None or (None, num_samples) ----
         if num_samples < 100:
+            if target_class is not None:
+                return None, num_samples
             return None
 
         # ---- 3) If 100 ≤ samples < 1000, upsample to 1000 ----
@@ -191,6 +193,9 @@ class DataLoader:
             batch_size=batch_size,
             shuffle=True,
         )
+
+        if target_class is not None:
+            return dataloader, num_samples
 
         return dataloader
 
