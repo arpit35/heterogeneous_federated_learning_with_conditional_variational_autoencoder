@@ -355,7 +355,7 @@ class FlowerHFedCVAEClient(NumPyClient):
                 self.batch_size,
             )
 
-            self._save_synthetic_images(synthetic_dataloader, current_round)
+            # self._save_synthetic_images(synthetic_dataloader, current_round)
 
             train_results = train_net(
                 net=self.net,
