@@ -6,14 +6,14 @@ from flwr.common import NDArrays
 from src.scripts.helper import metadata
 
 
-def get_weights(net):
-    return [val.cpu().numpy() for _, val in net.state_dict().items()]
+def get_weights(model):
+    return [val.cpu().numpy() for _, val in model.state_dict().items()]
 
 
-def set_weights(net, parameters):
-    params_dict = zip(net.state_dict().keys(), parameters)
+def set_weights(model, parameters):
+    params_dict = zip(model.state_dict().keys(), parameters)
     state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
-    net.load_state_dict(state_dict, strict=True)
+    model.load_state_dict(state_dict, strict=True)
 
 
 def to_onehot(labels, num_classes, device):
@@ -66,3 +66,7 @@ def create_synthetic_data(
     synthetic_labels = torch.cat(synthetic_labels, dim=0)
 
     return [synthetic_data.numpy(), synthetic_labels.numpy()]
+
+
+def count_params(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)

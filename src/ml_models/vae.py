@@ -9,10 +9,10 @@ from src.scripts.helper import metadata
 class VAE(nn.Module):
     def __init__(
         self,
-        h_dim=metadata["h_dim"],
-        res_h_dim=metadata["res_h_dim"],
-        n_res_layers=metadata["n_res_layers"],
-        latent_dim=metadata["latent_dim"],
+        h_dim,
+        res_h_dim,
+        n_res_layers,
+        latent_dim,
         input_shape=(
             metadata["num_channels"],
             metadata["image_width"],

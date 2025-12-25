@@ -163,7 +163,7 @@ class CustomFedAvg(FedAvg):
 
             results_file_path = os.path.join(
                 self.plots_folder_path,
-                f"{self.dataset_name}_{self.mode}_{self.num_of_clients}_results.json",
+                f"{self.mode}_{self.num_of_clients}_{self.dataset_name}_results.json",
             )
 
             with open(results_file_path, "w", encoding="utf-8") as file:
@@ -171,7 +171,7 @@ class CustomFedAvg(FedAvg):
 
             round_times_file_path = os.path.join(
                 self.plots_folder_path,
-                f"{self.dataset_name}_{self.mode}_{self.num_of_clients}_round_times.json",
+                f"{self.mode}_{self.num_of_clients}_{self.dataset_name}_round_times.json",
             )
 
             with open(round_times_file_path, "w", encoding="utf-8") as file:

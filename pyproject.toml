@@ -29,7 +29,7 @@ samples-per-class = 1000
 vae-scale-multiplier = 1.0
 prepare-dataset = false
 # cnn1, cnn2, cnn3, cnn4, cnn5
-cnn-type = "cnn1"
+cnn-type = "cnn5"
 # HFedCVAE, default, HFedCVAEGAN
 mode = "HFedCVAEGAN"
 
@@ -40,7 +40,7 @@ plots-folder-path = "src/plots"
 model-folder-path = "src/clients_models"
 
 # Dataset and Model Configuration - mnist, fashion_mnist, cifar10(dataset-input-feature=img)
-dataset-name = "fashion_mnist"
+dataset-name = "mnist"
 dataset-input-feature = "image"
 dataset-target-feature = "label"
 
