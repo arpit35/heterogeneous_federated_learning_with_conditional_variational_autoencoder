@@ -4,9 +4,11 @@ import torch
 from flwr.client import NumPyClient
 from PIL import Image
 
+from experments.gan import Discriminator
 from src.data_loader import DataLoader
 from src.ml_models.cnn import CNN
-from src.ml_models.discriminator import Discriminator
+
+# from src.ml_models.discriminator import Discriminator
 from src.ml_models.generator import Generator
 from src.ml_models.train_gan import train_gan
 from src.ml_models.train_net import test_net, train_net
@@ -215,9 +217,11 @@ class FlowerHFedCVAEClient(NumPyClient):
 
             if self.mode == "HFedCGAN":
                 self.generator = Generator(**metadata["generator_parameters"])
-                self.discriminator = Discriminator(
-                    **metadata["discriminator_parameters"]
-                )
+                # self.discriminator = Discriminator(
+                #     **metadata["discriminator_parameters"]
+                # )
+                # self.generator = Generator()
+                self.discriminator = Discriminator()
 
                 results.update(
                     train_gan(

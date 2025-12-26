@@ -41,10 +41,10 @@ class Discriminator(nn.Module):
                     )
 
             discriminator_block_list.extend(
-                discriminator_block(block_h_dim, block_h_dim // 2)
+                discriminator_block(block_h_dim, block_h_dim * 2)
             )
 
-            block_h_dim = block_h_dim // 2
+            block_h_dim = block_h_dim * 2
 
         self.conv_stack = nn.Sequential(*discriminator_block_list)
 

@@ -100,7 +100,7 @@ transform = transforms.Compose(
 class Generator(nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
-        self.init_size = img_size // 4
+        self.init_size = 28 // 4
 
         self.l1 = nn.Sequential(nn.Linear(latent_dim, 128 * self.init_size**2))
 
@@ -115,7 +115,7 @@ class Generator(nn.Module):
             nn.BatchNorm2d(64, 0.8),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(64, img_channels, 3, stride=1, padding=1),
-            nn.Tanh(),
+            nn.Sigmoid(),
         )
 
     def forward(self, z):
@@ -148,7 +148,7 @@ class Discriminator(nn.Module):
         )
 
         ds_size = img_size // 2**4
-        self.adv_layer = nn.Sequential(nn.Linear(128 * ds_size**2, 1), nn.Sigmoid())
+        self.adv_layer = nn.Sequential(nn.Linear(128 * ds_size**2, 1))
 
     def forward(self, img):
         out = self.model(img)

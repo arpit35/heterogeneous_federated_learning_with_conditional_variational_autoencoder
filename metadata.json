@@ -10,14 +10,14 @@
         "latent_dim": 100
     },
     "generator_parameters": {
-        "block_repeat": 2,
-        "n_block_layers": 6,
-        "h_dim": 220,
-        "latent_dim": 100
+        "n_block_layers": 2,
+        "h_dim": 187,
+        "latent_dim": 100,
+        "init_img_dim": 7
     },
     "discriminator_parameters": {
-        "block_repeat": 2,
+        "block_repeat": 1,
         "n_block_layers": 4,
-        "h_dim": 256
+        "h_dim": 27
     }
 }
