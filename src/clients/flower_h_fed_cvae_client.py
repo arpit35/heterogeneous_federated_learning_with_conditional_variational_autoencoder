@@ -11,6 +11,7 @@ from src.ml_models.generator import Generator
 from src.ml_models.train_gan import train_gan
 from src.ml_models.train_net import test_net, train_net
 from src.ml_models.train_vae import train_vae
+from src.ml_models.train_vae_gan import train_vae_gan
 from src.ml_models.utils import (
     create_synthetic_data,
     get_device,
@@ -249,10 +250,23 @@ class FlowerHFedCVAEClient(NumPyClient):
                 model = self.generator
 
             elif self.mode == "HFedCVAEGAN":
-                self.vae = VAE(**metadata["HFedCVAE"]["vae_parameters"])
+                self.vae = VAE(**metadata["HFedCVAEGAN"]["vae_parameters"])
                 self.discriminator = Discriminator(
-                    **metadata["HFedCGAN"]["discriminator_parameters"]
+                    **metadata["HFedCVAEGAN"]["discriminator_parameters"]
                 )
+
+                results.update(
+                    train_vae_gan(
+                        vae=self.vae,
+                        discriminator=self.discriminator,
+                        trainloader=train_dataloader,
+                        epochs=self.vae_epochs,
+                        device=self.device,
+                        dataset_input_feature=self.dataset_input_feature,
+                    )
+                )
+
+                model = self.vae
 
             data = create_synthetic_data(
                 model=model,
