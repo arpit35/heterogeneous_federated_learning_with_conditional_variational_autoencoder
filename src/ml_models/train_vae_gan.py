@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 
-from src.ml_models.utils import vae_loss as vae_loss_fn
-
 
 def train_vae_gan(
     vae,
@@ -17,7 +15,7 @@ def train_vae_gan(
     discriminator.to(device)
 
     vae_optimizer = torch.optim.Adam(vae.parameters())
-    discriminator_optimizer = torch.optim.Adam(discriminator.parameters())
+    discriminator_optimizer = torch.optim.SGD(discriminator.parameters())
 
     vae.train()
     discriminator.train()
@@ -37,6 +35,14 @@ def train_vae_gan(
             images = batch[dataset_input_feature].to(device)
             batch_size = images.size(0)
 
+            # Fake images
+            gen_imgs, mu, logvar = vae(images)
+
+            vae_loss, recon_loss, kl_loss = vae.vae_loss(gen_imgs, images, mu, logvar)
+
+            vae_loss.backward()
+            vae_optimizer.step()
+
             # Adversarial ground truths
             valid = torch.ones(batch_size, 1, device=device)
             fake = torch.zeros(batch_size, 1, device=device)
@@ -46,14 +52,6 @@ def train_vae_gan(
             # Real images
             real_pred = discriminator(images)
             discriminator_real_loss = bce_loss(real_pred, valid)
-
-            # Fake images
-            gen_imgs, mu, logvar = vae(images)
-
-            vae_loss, recon_loss, kl_loss = vae_loss_fn(gen_imgs, images, mu, logvar)
-
-            vae_loss.backward()
-            vae_optimizer.step()
 
             fake_pred = discriminator(gen_imgs.detach())
             discriminator_fake_loss = bce_loss(fake_pred, fake)
@@ -65,10 +63,11 @@ def train_vae_gan(
             # Generate images and calculate loss
             vae_optimizer.zero_grad()
 
+            gen_imgs, _, _ = vae(images)
             validity = discriminator(gen_imgs)
             generator_loss = bce_loss(validity, valid)
             generator_loss.backward()
-            vae_optimizer.step()
+            # vae_optimizer.step()
 
             total_discriminator_loss += discriminator_loss.item() * batch_size
             total_generator_loss += generator_loss.item() * batch_size
@@ -79,7 +78,7 @@ def train_vae_gan(
                 total_discriminator_loss
                 + total_generator_loss
                 + total_vae_loss
-                + recon_loss
+                + total_recon_loss
                 + total_kl_loss
             )
             total_samples += batch_size

@@ -41,6 +41,22 @@ class VAE(nn.Module):
 
         self.decoder = Decoder(C_enc, h_dim, n_res_layers, res_h_dim, input_shape[0])
 
+    def vae_loss(self, recon_x, x, mu, logvar):
+        """
+        recon_x: reconstructed batch  [B, C, H, W]
+        x:       original batch        [B, C, H, W]
+        mu:      mean of q(z|x,y)
+        logvar:  log variance of q(z|x,y)
+        """
+
+        # BCE reconstruction loss
+        recon_loss = nn.functional.mse_loss(recon_x, x, reduction="sum")
+
+        # KL divergence term
+        kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+
+        return recon_loss + 0.5 * kl_loss, recon_loss, kl_loss
+
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)

@@ -1,7 +1,5 @@
 import torch
 
-from src.ml_models.utils import vae_loss
-
 
 def train_vae(
     vae,
@@ -30,7 +28,7 @@ def train_vae(
 
             recon_x, mu, logvar = vae(images)
 
-            loss, recon_loss, kl_loss = vae_loss(recon_x, images, mu, logvar)
+            loss, recon_loss, kl_loss = vae.vae_loss(recon_x, images, mu, logvar)
 
             loss.backward()
             vae_optimizer.step()
