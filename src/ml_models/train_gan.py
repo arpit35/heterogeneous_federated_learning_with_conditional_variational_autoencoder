@@ -47,7 +47,7 @@ def train_gan(
             # Fake images
             z = torch.randn(
                 batch_size,
-                metadata["generator_parameters"]["latent_dim"],
+                metadata["HFedCGAN"]["generator_parameters"]["latent_dim"],
                 device=device,
             )
             gen_imgs = generator(z)

@@ -19,7 +19,7 @@ def client_fn(context: Context):
     mode = context.run_config.get("mode")
     cnn_type = context.run_config.get("cnn-type")
 
-    if mode == "HFedCVAE" or mode == "HFedCGAN":
+    if mode == "HFedCVAE" or mode == "HFedCGAN" or mode == "HFedCVAEGAN":
         return FlowerHFedCVAEClient(
             client_number,
             batch_size,

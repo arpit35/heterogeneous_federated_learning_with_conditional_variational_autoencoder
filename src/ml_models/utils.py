@@ -48,9 +48,9 @@ def create_synthetic_data(
         images = []
 
         if mode == "HFedCVAE":
-            latent_dim = metadata["vae_parameters"]["latent_dim"]
+            latent_dim = metadata["HFedCVAE"]["vae_parameters"]["latent_dim"]
         elif mode == "HFedCGAN":
-            latent_dim = metadata["generator_parameters"]["latent_dim"]
+            latent_dim = metadata["HFedCGAN"]["generator_parameters"]["latent_dim"]
 
         # Sample z
         z = torch.randn(current_batch_size, latent_dim, device=device)

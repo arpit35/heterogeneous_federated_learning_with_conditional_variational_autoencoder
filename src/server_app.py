@@ -113,7 +113,9 @@ class CustomFedAvg(FedAvg):
     def aggregate_fit(self, server_round, results, failures):
 
         if (
-            self.mode == "HFedCVAE" or self.mode == "HFedCGAN"
+            self.mode == "HFedCVAE"
+            or self.mode == "HFedCGAN"
+            or self.mode == "HFedCVAEGAN"
         ) and server_round <= metadata["num_classes"]:
             if not results:
                 return None, {}

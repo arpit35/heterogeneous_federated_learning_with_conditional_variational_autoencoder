@@ -4,11 +4,9 @@ import torch
 from flwr.client import NumPyClient
 from PIL import Image
 
-from experments.gan import Discriminator
 from src.data_loader import DataLoader
 from src.ml_models.cnn import CNN
-
-# from src.ml_models.discriminator import Discriminator
+from src.ml_models.discriminator import Discriminator
 from src.ml_models.generator import Generator
 from src.ml_models.train_gan import train_gan
 from src.ml_models.train_net import test_net, train_net
@@ -215,13 +213,27 @@ class FlowerHFedCVAEClient(NumPyClient):
                     results,
                 )
 
-            if self.mode == "HFedCGAN":
-                self.generator = Generator(**metadata["generator_parameters"])
-                # self.discriminator = Discriminator(
-                #     **metadata["discriminator_parameters"]
-                # )
-                # self.generator = Generator()
-                self.discriminator = Discriminator()
+            if self.mode == "HFedCVAE":
+                self.vae = VAE(**metadata["HFedCVAE"]["vae_parameters"])
+                results.update(
+                    train_vae(
+                        vae=self.vae,
+                        trainloader=train_dataloader,
+                        epochs=self.vae_epochs,
+                        device=self.device,
+                        dataset_input_feature=self.dataset_input_feature,
+                    )
+                )
+
+                model = self.vae
+
+            elif self.mode == "HFedCGAN":
+                self.generator = Generator(
+                    **metadata["HFedCGAN"]["generator_parameters"]
+                )
+                self.discriminator = Discriminator(
+                    **metadata["HFedCGAN"]["discriminator_parameters"]
+                )
 
                 results.update(
                     train_gan(
@@ -236,19 +248,11 @@ class FlowerHFedCVAEClient(NumPyClient):
 
                 model = self.generator
 
-            if self.mode == "HFedCVAE":
-                self.vae = VAE(**metadata["vae_parameters"])
-                results.update(
-                    train_vae(
-                        vae=self.vae,
-                        trainloader=train_dataloader,
-                        epochs=self.vae_epochs,
-                        device=self.device,
-                        dataset_input_feature=self.dataset_input_feature,
-                    )
+            elif self.mode == "HFedCVAEGAN":
+                self.vae = VAE(**metadata["HFedCVAE"]["vae_parameters"])
+                self.discriminator = Discriminator(
+                    **metadata["HFedCGAN"]["discriminator_parameters"]
                 )
-
-                model = self.vae
 
             data = create_synthetic_data(
                 model=model,
