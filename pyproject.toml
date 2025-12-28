@@ -21,7 +21,7 @@ num-of-clients = 5
 net-learning-rate = 0.001
 fraction-evaluate = 1
 net-epochs = 3
-vae-epochs = 20
+vae-epochs = 12
 batch-size = 64
 data-loader-alpha = 0.1
 num-server-rounds = 10
@@ -39,8 +39,8 @@ plots-folder-path = "src/plots"
 model-folder-path = "src/clients_models"
 
 # Dataset and Model Configuration - mnist, fashion_mnist, cifar10(dataset-input-feature=img)
-dataset-name = "cifar10"
-dataset-input-feature = "img"
+dataset-name = "mnist"
+dataset-input-feature = "image"
 dataset-target-feature = "label"
 
 [tool.flwr.federations]
