@@ -55,7 +55,7 @@ class VAE(nn.Module):
         # KL divergence term
         kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
-        return recon_loss + 0.5 * kl_loss, recon_loss, kl_loss
+        return recon_loss + 0.3 * kl_loss, recon_loss, kl_loss
 
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)

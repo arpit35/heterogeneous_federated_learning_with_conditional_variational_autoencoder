@@ -67,7 +67,7 @@ def train_vae_gan(
             validity = discriminator(gen_imgs)
             generator_loss = bce_loss(validity, valid)
             generator_loss.backward()
-            # vae_optimizer.step()
+            vae_optimizer.step()
 
             total_discriminator_loss += discriminator_loss.item() * batch_size
             total_generator_loss += generator_loss.item() * batch_size

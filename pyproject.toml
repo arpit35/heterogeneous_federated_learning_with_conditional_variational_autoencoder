@@ -30,7 +30,7 @@ prepare-dataset = false
 # cnn1, cnn2, cnn3, cnn4, cnn5
 cnn-type = "cnn5"
 # HFedCVAE, HFedCGAN, HFedCVAEGAN, default, 
-mode = "HFedCVAEGAN"
+mode = "HFedCVAE"
 
 # Paths
 logs-folder-path = "log"
@@ -39,8 +39,8 @@ plots-folder-path = "src/plots"
 model-folder-path = "src/clients_models"
 
 # Dataset and Model Configuration - mnist, fashion_mnist, cifar10(dataset-input-feature=img)
-dataset-name = "mnist"
-dataset-input-feature = "image"
+dataset-name = "cifar10"
+dataset-input-feature = "img"
 dataset-target-feature = "label"
 
 [tool.flwr.federations]
