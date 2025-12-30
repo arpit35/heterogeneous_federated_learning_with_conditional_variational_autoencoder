@@ -14,27 +14,27 @@
     "HFedCGAN": {
         "generator_parameters": {
             "n_block_layers": 2,
-            "h_dim": 187,
+            "h_dim": 120,
             "latent_dim": 100,
             "init_img_dim": 7
         },
         "discriminator_parameters": {
             "block_repeat": 1,
             "n_block_layers": 3,
-            "h_dim": 16
+            "h_dim": 42
         }
     },
     "HFedCVAEGAN": {
         "vae_parameters": {
-            "h_dim": 248,
-            "res_h_dim": 60,
-            "n_res_layers": 3,
+            "h_dim": 210,
+            "res_h_dim": 56,
+            "n_res_layers": 2,
             "latent_dim": 100
         },
         "discriminator_parameters": {
             "block_repeat": 1,
-            "n_block_layers": 4,
-            "h_dim": 32
+            "n_block_layers": 3,
+            "h_dim": 30
         }
     }
 }

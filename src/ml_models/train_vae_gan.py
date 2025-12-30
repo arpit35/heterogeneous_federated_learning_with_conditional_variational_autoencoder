@@ -30,15 +30,19 @@ def train_vae_gan(
 
     bce_loss = nn.BCEWithLogitsLoss()
 
-    for _ in range(epochs):
+    for epoch in range(epochs):
         for batch in trainloader:
             images = batch[dataset_input_feature].to(device)
             batch_size = images.size(0)
 
+            vae_optimizer.zero_grad()
+
             # Fake images
             gen_imgs, mu, logvar = vae(images)
 
-            vae_loss, recon_loss, kl_loss = vae.vae_loss(gen_imgs, images, mu, logvar)
+            vae_loss, recon_loss, kl_loss = vae.vae_loss(
+                gen_imgs, images, mu, logvar, epoch
+            )
 
             vae_loss.backward()
             vae_optimizer.step()
@@ -61,19 +65,27 @@ def train_vae_gan(
             discriminator_optimizer.step()
 
             # Generate images and calculate loss
+
+            for p in vae.encoder.parameters():
+                p.requires_grad = False
+
             vae_optimizer.zero_grad()
 
             gen_imgs, _, _ = vae(images)
             validity = discriminator(gen_imgs)
+
             generator_loss = bce_loss(validity, valid)
             generator_loss.backward()
-            vae_optimizer.step()
+            # vae_optimizer.step()
+
+            for p in vae.encoder.parameters():
+                p.requires_grad = True
 
             total_discriminator_loss += discriminator_loss.item() * batch_size
             total_generator_loss += generator_loss.item() * batch_size
-            total_vae_loss += vae_loss.item() * batch_size
-            total_recon_loss += recon_loss.item() * batch_size
-            total_kl_loss += kl_loss.item() * batch_size
+            total_vae_loss += vae_loss.item()
+            total_recon_loss += recon_loss.item()
+            total_kl_loss += kl_loss.item()
             total_loss += (
                 total_discriminator_loss
                 + total_generator_loss
@@ -83,16 +95,12 @@ def train_vae_gan(
             )
             total_samples += batch_size
 
-    avg_loss = total_loss / total_samples if total_samples > 0 else 0
-    avg_discriminator_loss = (
-        total_discriminator_loss / total_samples if total_samples > 0 else 0
-    )
-    avg_generator_loss = (
-        total_generator_loss / total_samples if total_samples > 0 else 0
-    )
-    avg_vae_loss = total_vae_loss / total_samples if total_samples > 0 else 0
-    avg_recon_loss = total_recon_loss / total_samples if total_samples > 0 else 0
-    avg_kl_loss = total_kl_loss / total_samples if total_samples > 0 else 0
+    avg_loss = total_loss / total_samples
+    avg_discriminator_loss = total_discriminator_loss / total_samples
+    avg_generator_loss = total_generator_loss / total_samples
+    avg_vae_loss = total_vae_loss / total_samples
+    avg_recon_loss = total_recon_loss / total_samples
+    avg_kl_loss = total_kl_loss / total_samples
 
     del vae_optimizer
     del discriminator_optimizer

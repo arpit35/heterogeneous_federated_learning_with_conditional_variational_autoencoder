@@ -10,9 +10,6 @@ def prepare_dataset(
     if not should_prepare_dataset:
         return
 
-    print("Clearing metadata...")
-    clear_metadata()
-
     print("Preparing dataset...")
 
     num_of_clients = int(config.get("num-of-clients", 0))
