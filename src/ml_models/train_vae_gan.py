@@ -76,7 +76,7 @@ def train_vae_gan(
 
             generator_loss = bce_loss(validity, valid)
             generator_loss.backward()
-            # vae_optimizer.step()
+            vae_optimizer.step()
 
             for p in vae.encoder.parameters():
                 p.requires_grad = True

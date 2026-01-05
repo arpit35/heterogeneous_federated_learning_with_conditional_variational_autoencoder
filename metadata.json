@@ -26,9 +26,9 @@
     },
     "HFedCVAEGAN": {
         "vae_parameters": {
-            "h_dim": 210,
+            "h_dim": 224,
             "res_h_dim": 56,
-            "n_res_layers": 2,
+            "n_res_layers": 3,
             "latent_dim": 100
         },
         "discriminator_parameters": {

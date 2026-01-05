@@ -1,3 +1,4 @@
+import math
 import os
 
 import torch
@@ -18,7 +19,7 @@ from src.ml_models.utils import (
     get_weights,
     set_weights,
 )
-from src.ml_models.vae import VAE
+from src.ml_models.vae import CVAE
 from src.scripts.helper import metadata
 from src.utils.logger import get_logger
 
@@ -37,6 +38,7 @@ class FlowerHFedCVAEClient(NumPyClient):
         dataset_target_feature,
         cnn_type,
         mode,
+        num_class_learn_per_round,
     ):
         super().__init__()
         self.client_number = client_number
@@ -58,6 +60,7 @@ class FlowerHFedCVAEClient(NumPyClient):
         self.dataset_target_feature = dataset_target_feature
         self.cnn_type = cnn_type
         self.mode = mode
+        self.num_class_learn_per_round = num_class_learn_per_round
 
         self.net = None
         self.vae = None
@@ -174,7 +177,11 @@ class FlowerHFedCVAEClient(NumPyClient):
 
         data = []
 
-        if current_round <= metadata["num_classes"]:
+        total_data_generation_rounds = math.ceil(
+            metadata["num_classes"] / self.num_class_learn_per_round
+        )
+
+        if current_round <= total_data_generation_rounds:
 
             if current_round == 1:
                 self.net = CNN(cnn_type=self.cnn_type)
@@ -187,26 +194,34 @@ class FlowerHFedCVAEClient(NumPyClient):
 
                 self.net.to("cpu")
 
-            target_class = current_round - 1
+            start_idx = (current_round - 1) * self.num_class_learn_per_round
+            end_idx = start_idx + self.num_class_learn_per_round
+            target_class_list = list(
+                range(start_idx, min(end_idx, metadata["num_classes"]))
+            )
 
-            train_dataloader, original_data_length = dataloader.load_dataset_from_disk(
+            train_dataloader = dataloader.load_dataset_from_disk(
                 "train_data",
                 self.client_data_folder_path,
                 self.batch_size,
-                target_class=target_class,
+                target_class=target_class_list,
                 upsample_amount=1000,
             )
 
+            if train_dataloader:
+                train_dataloader, filtered_target_class_num_samples = train_dataloader
+
             self.logger.info(
-                "Original data length for class %s: %s",
-                target_class,
-                original_data_length,
+                "Original data length for class %s: %s , len: %s",
+                target_class_list,
+                filtered_target_class_num_samples,
+                len(train_dataloader.dataset),
             )
 
             if train_dataloader is None:
                 self.logger.info(
-                    "No data for target_class %s, skipping VAE training",
-                    target_class,
+                    "No data for target_class_list %s, skipping VAE training",
+                    target_class_list,
                 )
                 return (
                     [],
@@ -215,14 +230,15 @@ class FlowerHFedCVAEClient(NumPyClient):
                 )
 
             if self.mode == "HFedCVAE":
-                self.vae = VAE(**metadata["HFedCVAE"]["vae_parameters"])
+                self.vae = CVAE(**metadata["HFedCVAE"]["vae_parameters"])
                 results.update(
                     train_vae(
-                        vae=self.vae,
+                        cvae=self.vae,
                         trainloader=train_dataloader,
                         epochs=self.vae_epochs,
                         device=self.device,
                         dataset_input_feature=self.dataset_input_feature,
+                        dataset_target_feature=self.dataset_target_feature,
                     )
                 )
 
@@ -250,7 +266,7 @@ class FlowerHFedCVAEClient(NumPyClient):
                 model = self.generator
 
             elif self.mode == "HFedCVAEGAN":
-                self.vae = VAE(**metadata["HFedCVAEGAN"]["vae_parameters"])
+                self.vae = CVAE(**metadata["HFedCVAEGAN"]["vae_parameters"])
                 self.discriminator = Discriminator(
                     **metadata["HFedCVAEGAN"]["discriminator_parameters"]
                 )
@@ -270,11 +286,15 @@ class FlowerHFedCVAEClient(NumPyClient):
 
             data = create_synthetic_data(
                 model=model,
-                label=target_class,
+                filtered_target_class_num_samples=filtered_target_class_num_samples,
                 device=self.device,
-                samples_per_class=original_data_length,
                 batch_size=self.batch_size,
                 mode=self.mode,
+            )
+
+            self.logger.info(
+                "synthetic data length %s",
+                len(data[0]),
             )
 
             if self.vae:
@@ -284,7 +304,7 @@ class FlowerHFedCVAEClient(NumPyClient):
             if self.discriminator:
                 self.discriminator.to("cpu")
 
-        elif current_round == metadata["num_classes"] + 1:
+        elif current_round == total_data_generation_rounds + 1:
             self.net = CNN(cnn_type=self.cnn_type)
 
             self._set_weights_from_disk("net")
@@ -329,7 +349,7 @@ class FlowerHFedCVAEClient(NumPyClient):
 
             self.net.to("cpu")
 
-        elif current_round > metadata["num_classes"] + 1:
+        elif current_round > total_data_generation_rounds + 1:
             self.net = CNN(cnn_type=self.cnn_type)
 
             set_weights(self.net, parameters)

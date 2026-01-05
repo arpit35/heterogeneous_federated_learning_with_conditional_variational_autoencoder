@@ -24,13 +24,14 @@ net-epochs = 3
 vae-epochs = 12
 batch-size = 64
 data-loader-alpha = 0.1
-num-server-rounds = 10
+num-server-rounds = 1
 vae-scale-multiplier = 1.0
 prepare-dataset = false
 # cnn1, cnn2, cnn3, cnn4, cnn5
 cnn-type = "cnn5"
 # HFedCVAE, HFedCGAN, HFedCVAEGAN, default, 
 mode = "HFedCVAE"
+num-class-learn-per-round = 10
 
 # Paths
 logs-folder-path = "log"

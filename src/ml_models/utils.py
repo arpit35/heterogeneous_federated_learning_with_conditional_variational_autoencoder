@@ -1,6 +1,7 @@
 from collections import OrderedDict
 
 import torch
+import torch.nn.functional as F
 from flwr.common import NDArrays
 
 from src.scripts.helper import metadata
@@ -16,10 +17,16 @@ def set_weights(model, parameters):
     model.load_state_dict(state_dict, strict=True)
 
 
-def to_onehot(labels, num_classes, device):
-    onehot = torch.zeros(labels.size(0), num_classes, device=device)
-    onehot.scatter_(1, labels.view(-1, 1), 1)
-    return onehot
+def one_hot_labels(labels, num_classes, spatial_size=None):
+    """Convert labels to one-hot and optionally make spatial."""
+    one_hot = F.one_hot(labels, num_classes).float()
+
+    if spatial_size is not None:
+        H, W = spatial_size
+        one_hot = one_hot.unsqueeze(-1).unsqueeze(-1)  # [B, num_classes, 1, 1]
+        one_hot = one_hot.expand(-1, -1, H, W)  # [B, num_classes, H, W]
+
+    return one_hot
 
 
 def get_device():
@@ -31,7 +38,7 @@ def get_device():
 
 
 def create_synthetic_data(
-    model, label, device, samples_per_class, batch_size, mode
+    model, filtered_target_class_num_samples, device, batch_size, mode
 ) -> NDArrays:
     model.eval()
     model.to(device)
@@ -40,39 +47,59 @@ def create_synthetic_data(
     synthetic_data = []
     synthetic_labels = []
 
-    # Generate in batches to be memory efficient
-    for start_idx in range(0, samples_per_class, batch_size):
-        current_batch_size = min(batch_size, samples_per_class - start_idx)
+    if mode == "HFedCVAE":
+        latent_dim = metadata["HFedCVAE"]["vae_parameters"]["latent_dim"]
+    elif mode == "HFedCGAN":
+        latent_dim = metadata["HFedCGAN"]["generator_parameters"]["latent_dim"]
+    elif mode == "HFedCVAEGAN":
+        latent_dim = metadata["HFedCVAEGAN"]["vae_parameters"]["latent_dim"]
 
-        latent_dim = 0
-        images = []
+    for class_label, num_samples in filtered_target_class_num_samples.items():
+        # Generate in batches to be memory efficient
+        for start_idx in range(0, num_samples, batch_size):
+            current_batch_size = min(batch_size, num_samples - start_idx)
 
-        if mode == "HFedCVAE":
-            latent_dim = metadata["HFedCVAE"]["vae_parameters"]["latent_dim"]
-        elif mode == "HFedCGAN":
-            latent_dim = metadata["HFedCGAN"]["generator_parameters"]["latent_dim"]
-        elif mode == "HFedCVAEGAN":
-            latent_dim = metadata["HFedCVAEGAN"]["vae_parameters"]["latent_dim"]
+            images = []
 
-        # Sample z
-        z = torch.randn(current_batch_size, latent_dim, device=device)
+            # Sample z
+            z = torch.randn(current_batch_size, latent_dim, device=device)
 
-        if mode == "HFedCVAE" or mode == "HFedCVAEGAN":
-            with torch.no_grad():
-                expanded = model.fc_expand(z)
-                expanded = expanded.view(current_batch_size, *model.enc_shape)
-                images = model.decoder(expanded)
-        elif mode == "HFedCGAN":
-            with torch.no_grad():
-                images = model(z)
-
-        synthetic_data.append(images.cpu())
-        synthetic_labels.append(
-            torch.tensor(
-                [label for _ in range(current_batch_size)],
+            labels = torch.full(
+                (current_batch_size,),
+                class_label,
                 dtype=torch.long,
-            ).cpu()
-        )
+                device=device,
+            )
+
+            if mode == "HFedCVAE" or mode == "HFedCVAEGAN":
+                with torch.no_grad():
+                    # One-hot labels (non-spatial)
+                    one_hot = one_hot_labels(labels, model.num_classes)
+
+                    # Concatenate z + label
+                    z_with_label = torch.cat([z, one_hot], dim=1)
+
+                    # Expand to feature map
+                    expanded = model.fc_expand(z_with_label)
+                    expanded = expanded.view(current_batch_size, *model.enc_shape)
+
+                    # Spatial one-hot labels for decoder
+                    decoder_one_hot_spatial = one_hot_labels(
+                        labels,
+                        model.num_classes,
+                        (model.enc_shape[1], model.enc_shape[2]),
+                    )
+
+                    # Conditional decoder input
+                    z_cond = torch.cat([expanded, decoder_one_hot_spatial], dim=1)
+
+                    images = model.decoder(z_cond)
+            elif mode == "HFedCGAN":
+                with torch.no_grad():
+                    images = model(z)
+
+            synthetic_data.append(images.cpu())
+            synthetic_labels.append(labels.cpu())
 
     # Concatenate all batches
     synthetic_data = torch.cat(synthetic_data, dim=0)

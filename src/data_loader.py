@@ -142,35 +142,20 @@ class DataLoader:
         os.makedirs(os.path.dirname(test_path), exist_ok=True)
         test_set.save_to_disk(test_path)
 
-    def load_dataset_from_disk(
-        self,
-        data_type: str,
-        client_folder_path: str,
-        batch_size: int,
-        target_class: int | None = None,
-        upsample_amount: int = 0,
-    ) -> TorchDataLoader:
+    def _filter_and_upscale_target_class(self, dataset, target_class, upsample_amount):
 
-        client_file_path = os.path.join(client_folder_path, data_type)
-        dataset = load_from_disk(client_file_path)
+        filtered_dataset = dataset.filter(
+            lambda x: x[self.dataset_target_feature] == target_class,
+            load_from_cache_file=False,
+        )
 
-        # ---- 1) Filter to only the target class ----
-        if target_class is not None:
-            dataset = dataset.filter(
-                lambda x: x[self.dataset_target_feature] == target_class,
-                load_from_cache_file=False,
-            )
+        num_samples = len(filtered_dataset)
 
-        # Count samples
-        num_samples = len(dataset)
-
-        # ---- 2) If < 100 samples, return None or (None, num_samples) ----
         if num_samples < 100:
-            if target_class is not None:
-                return None, num_samples
-            return None
+            return None, num_samples
 
-        # ---- 3) If 100 ≤ samples < 1000, upsample to 1000 ----
+        dataset_list = [filtered_dataset[i] for i in range(num_samples)]
+
         if num_samples < upsample_amount and upsample_amount > 0:
             # Random indices with replacement
             extra_indices = np.random.choice(
@@ -178,11 +163,49 @@ class DataLoader:
             )
 
             # Convert dataset to list to append easily
-            dataset_list = [dataset[i] for i in range(num_samples)]
-            dataset_list.extend(dataset[int(i)] for i in extra_indices)
+            dataset_list.extend(filtered_dataset[int(i)] for i in extra_indices)
 
-            # Recreate dataset from list
-            dataset = dataset.from_list(dataset_list)
+        return dataset_list, num_samples
+
+    def load_dataset_from_disk(
+        self,
+        data_type: str,
+        client_folder_path: str,
+        batch_size: int,
+        target_class: list | None = None,
+        upsample_amount: int = 0,
+    ) -> TorchDataLoader | None | tuple[TorchDataLoader, dict] | tuple[None, dict]:
+
+        client_file_path = os.path.join(client_folder_path, data_type)
+        dataset = load_from_disk(client_file_path)
+
+        # ---- 1) Filter to only the target class ----
+        if target_class is not None:
+            filtered_and_upscaled_dataset = []
+            filtered_target_class_num_samples = {}
+            all_target_class_num_samples = {}
+
+            for cls in target_class:
+                cls_list, cls_num_samples = self._filter_and_upscale_target_class(
+                    dataset, cls, upsample_amount
+                )
+
+                all_target_class_num_samples[cls] = cls_num_samples
+
+                if cls_list is not None:
+                    filtered_and_upscaled_dataset.extend(cls_list)
+                    filtered_target_class_num_samples[cls] = cls_num_samples
+
+            if not filtered_target_class_num_samples:
+                return None, all_target_class_num_samples
+
+            dataset = dataset.from_list(filtered_and_upscaled_dataset)
+
+        else:
+            num_samples = len(dataset)
+
+            if num_samples < 100:
+                return None
 
         # Apply transforms
         dataset = dataset.with_transform(self._apply_transforms)
@@ -195,7 +218,7 @@ class DataLoader:
         )
 
         if target_class is not None:
-            return dataloader, num_samples
+            return dataloader, filtered_target_class_num_samples
 
         return dataloader
 
