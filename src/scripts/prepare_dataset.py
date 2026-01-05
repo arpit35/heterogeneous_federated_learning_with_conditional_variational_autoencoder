@@ -17,7 +17,6 @@ def prepare_dataset(
     alpha = float(config.get("data-loader-alpha", 0))
     dataset_input_feature = str(config.get("dataset-input-feature", None))
     dataset_target_feature = str(config.get("dataset-target-feature", None))
-    vae_scale_multiplier = float(config.get("vae-scale-multiplier", 1.0))
 
     clear_folder_contents(dataset_folder_path)
 
@@ -31,5 +30,4 @@ def prepare_dataset(
         num_clients=num_of_clients,
         alpha=alpha,
         dataset_folder_path=dataset_folder_path,
-        vae_scale_multiplier=vae_scale_multiplier,
     )

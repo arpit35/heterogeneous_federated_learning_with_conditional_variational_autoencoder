@@ -45,6 +45,7 @@ class CustomFedAvg(FedAvg):
         dataset_name,
         mode,
         cnn_type,
+        num_class_learn_per_round,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -54,6 +55,8 @@ class CustomFedAvg(FedAvg):
         self.dataset_name = dataset_name
         self.mode = mode
         self.cnn_type = cnn_type
+        self.num_class_learn_per_round = num_class_learn_per_round
+
         self.synthetic_data = []
         self.synthetic_labels = []
         self.client_plot = {}
@@ -165,7 +168,7 @@ class CustomFedAvg(FedAvg):
 
             results_file_path = os.path.join(
                 self.plots_folder_path,
-                f"{self.mode}_{self.num_of_clients}_{self.dataset_name}_results.json",
+                f"{self.mode}_{self.num_of_clients}_{self.num_class_learn_per_round}_{self.dataset_name}_results.json",
             )
 
             with open(results_file_path, "w", encoding="utf-8") as file:
@@ -173,7 +176,7 @@ class CustomFedAvg(FedAvg):
 
             round_times_file_path = os.path.join(
                 self.plots_folder_path,
-                f"{self.mode}_{self.num_of_clients}_{self.dataset_name}_round_times.json",
+                f"{self.mode}_{self.num_of_clients}_{self.num_class_learn_per_round}_{self.dataset_name}_round_times.json",
             )
 
             with open(round_times_file_path, "w", encoding="utf-8") as file:
@@ -191,6 +194,7 @@ def server_fn(context: Context):
     dataset_name = context.run_config.get("dataset-name")
     mode = context.run_config.get("mode")
     cnn_type = context.run_config.get("cnn-type")
+    num_class_learn_per_round = context.run_config.get("num-class-learn-per-round")
 
     ndarrays = get_weights(CNN(cnn_type=str(cnn_type)))
     initial_parameters = ndarrays_to_parameters(ndarrays)
@@ -206,6 +210,7 @@ def server_fn(context: Context):
         dataset_name=dataset_name,
         mode=mode,
         cnn_type=cnn_type,
+        num_class_learn_per_round=num_class_learn_per_round,
     )
     config = ServerConfig(num_rounds=int(context.run_config["num-server-rounds"]))
 
