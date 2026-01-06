@@ -17,8 +17,7 @@ from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from flwr.server.strategy import FedAvg
 
 from src.ml_models.cnn import CNN
-from src.ml_models.utils import get_weights
-from src.scripts.helper import metadata
+from src.ml_models.utils import get_total_data_generation_rounds, get_weights
 
 
 # Define metric aggregation function
@@ -115,11 +114,14 @@ class CustomFedAvg(FedAvg):
 
     def aggregate_fit(self, server_round, results, failures):
 
+        total_data_generation_rounds = get_total_data_generation_rounds(
+            self.num_class_learn_per_round
+        )
         if (
             self.mode == "HFedCVAE"
             or self.mode == "HFedCGAN"
             or self.mode == "HFedCVAEGAN"
-        ) and server_round <= metadata["num_classes"]:
+        ) and server_round <= total_data_generation_rounds:
             if not results:
                 return None, {}
             # Do not aggregate if there are failures and failures are not accepted

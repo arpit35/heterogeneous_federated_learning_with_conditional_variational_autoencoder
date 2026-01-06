@@ -25,12 +25,12 @@ vae-epochs = 12
 batch-size = 64
 data-loader-alpha = 0.1
 num-server-rounds = 1
-prepare-dataset = false
+prepare-dataset = true
 # cnn1, cnn2, cnn3, cnn4, cnn5
 cnn-type = "cnn5"
 # HFedCVAE, HFedCGAN, HFedCVAEGAN, default, 
 mode = "HFedCVAE"
-num-class-learn-per-round = 10
+num-class-learn-per-round = 62
 
 # Paths
 logs-folder-path = "log"
@@ -38,10 +38,10 @@ dataset-folder-path = "src/clients_dataset"
 plots-folder-path = "src/plots"
 model-folder-path = "src/clients_models"
 
-# Dataset and Model Configuration - mnist, fashion_mnist, cifar10(dataset-input-feature=img)
-dataset-name = "mnist"
+# Dataset and Model Configuration - mnist, fashion_mnist, cifar10(dataset-input-feature=img), flwrlabs/femnist(ataset-target-feature=character)
+dataset-name = "flwrlabs/femnist"
 dataset-input-feature = "image"
-dataset-target-feature = "label"
+dataset-target-feature = "character"
 
 [tool.flwr.federations]
 default = "local-simulation"

@@ -1,14 +1,51 @@
 import os
+import random
+from collections import defaultdict
 
 import numpy as np
 import torch
-from datasets import Dataset, load_dataset, load_from_disk
+from datasets import Dataset, load_from_disk
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import DirichletPartitioner
 from torch.utils.data import DataLoader as TorchDataLoader
 from torchvision import transforms
 
 from src.scripts.helper import save_metadata
+
+
+class NumpyDataset(Dataset):
+    def __init__(
+        self,
+        images,
+        labels,
+        dataset_input_feature: str,
+        dataset_target_feature: str,
+    ):
+        """
+        images: np.ndarray, shape [N, H, W] or [N, C, H, W]
+        labels: np.ndarray or list, shape [N]
+        """
+        self.images = images
+        self.labels = labels
+        self.dataset_input_feature = dataset_input_feature
+        self.dataset_target_feature = dataset_target_feature
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        img = self.images[idx]
+        label = self.labels[idx]
+
+        # ⚠️ ALWAYS allocates new memory
+        x = torch.tensor(img, dtype=torch.float32)
+
+        y = torch.tensor(label, dtype=torch.long)
+
+        return {
+            self.dataset_input_feature: x,
+            self.dataset_target_feature: y,
+        }
 
 
 class DataLoader:
@@ -85,6 +122,26 @@ class DataLoader:
             "num_channels": channels,
         }
 
+    def limit_samples_per_class(self, dataset, max_per_class, seed=42):
+        random.seed(seed)
+
+        class_indices = defaultdict(list)
+
+        # Collect indices per class
+        for idx, example in enumerate(dataset):
+            cls = example[self.dataset_target_feature]
+            class_indices[cls].append(idx)
+
+        # Subsample indices
+        selected_indices = []
+        for cls, indices in class_indices.items():
+            if len(indices) > max_per_class:
+                indices = random.sample(indices, max_per_class)
+            selected_indices.extend(indices)
+
+        # Create filtered dataset
+        return dataset.select(selected_indices)
+
     def save_datasets_to_disk(
         self,
         num_clients: int,
@@ -103,6 +160,8 @@ class DataLoader:
             os.makedirs(client_dataset_folder_path, exist_ok=True)
 
             partition = fds.load_partition(client_id)
+
+            partition = self.limit_samples_per_class(partition, max_per_class=6000)
 
             labels = partition[self.dataset_target_feature]
             # Compute the unique classes and their counts
@@ -131,36 +190,50 @@ class DataLoader:
             train_partition.save_to_disk(train_path)
             val_partition.save_to_disk(val_path)
 
-        # Load and save test dataset (common for all clients)
-        test_set = load_dataset(self.dataset_name, split="test")
-        test_path = os.path.join(dataset_folder_path, "test_data")
-        os.makedirs(os.path.dirname(test_path), exist_ok=True)
-        test_set.save_to_disk(test_path)
+    def _process_target_classes(self, dataset, target_classes, upsample_amount):
+        """
+        Process multiple target classes in a single pass through the dataset.
+        """
+        # Validate inputs
+        if not target_classes:
+            return None, {}
 
-    def _filter_and_upscale_target_class(self, dataset, target_class, upsample_amount):
+        # Initialize data structures
+        all_target_class_num_samples = {cls: 0 for cls in target_classes}
+        class_data = {cls: [] for cls in target_classes}
 
-        filtered_dataset = dataset.filter(
-            lambda x: x[self.dataset_target_feature] == target_class,
-            load_from_cache_file=False,
-        )
+        # Single pass through dataset
+        for example in dataset:
+            current_class = example[self.dataset_target_feature]
+            if current_class in all_target_class_num_samples:
+                all_target_class_num_samples[current_class] += 1
+                class_data[current_class].append(example)
 
-        num_samples = len(filtered_dataset)
+        # Check for classes with insufficient samples
+        filtered_target_class_num_samples = {}
+        filtered_and_upscaled_data = []
 
-        if num_samples < 100:
-            return None, num_samples
+        for cls in target_classes:
+            num_samples = all_target_class_num_samples[cls]
 
-        dataset_list = [filtered_dataset[i] for i in range(num_samples)]
+            if num_samples < 100:
+                continue  # Skip this class
 
-        if num_samples < upsample_amount and upsample_amount > 0:
-            # Random indices with replacement
-            extra_indices = np.random.choice(
-                num_samples, upsample_amount - num_samples, replace=True
-            )
+            # Add original samples
+            samples = class_data[cls]
+            filtered_target_class_num_samples[cls] = num_samples
+            filtered_and_upscaled_data.extend(samples)
 
-            # Convert dataset to list to append easily
-            dataset_list.extend(filtered_dataset[int(i)] for i in extra_indices)
+            # Apply upsampling if needed
+            if num_samples < upsample_amount and upsample_amount > 0:
+                # Generate extra indices with replacement
+                extra_indices = np.random.choice(
+                    num_samples, upsample_amount - num_samples, replace=True
+                )
+                # Add extra samples
+                filtered_and_upscaled_data.extend(samples[i] for i in extra_indices)
 
-        return dataset_list, num_samples
+        return filtered_and_upscaled_data, filtered_target_class_num_samples
 
     def load_dataset_from_disk(
         self,
@@ -174,31 +247,31 @@ class DataLoader:
         client_file_path = os.path.join(client_folder_path, data_type)
         dataset = load_from_disk(client_file_path)
 
-        # ---- 1) Filter to only the target class ----
+        # ---- 1) Filter and process target classes in single pass ----
         if target_class is not None:
-            filtered_and_upscaled_dataset = []
-            filtered_target_class_num_samples = {}
-            all_target_class_num_samples = {}
-
-            for cls in target_class:
-                cls_list, cls_num_samples = self._filter_and_upscale_target_class(
-                    dataset, cls, upsample_amount
-                )
-
-                all_target_class_num_samples[cls] = cls_num_samples
-
-                if cls_list is not None:
-                    filtered_and_upscaled_dataset.extend(cls_list)
-                    filtered_target_class_num_samples[cls] = cls_num_samples
+            filtered_and_upscaled_data, filtered_target_class_num_samples = (
+                self._process_target_classes(dataset, target_class, upsample_amount)
+            )
 
             if not filtered_target_class_num_samples:
+                # Count all classes for the return value
+                all_target_class_num_samples = {}
+                for cls in target_class:
+                    # If we need accurate counts without filtering, we can either:
+                    # Option 1: Use a faster counting method
+                    all_target_class_num_samples[cls] = sum(
+                        1
+                        for example in dataset
+                        if example[self.dataset_target_feature] == cls
+                    )
+                    # Option 2: Use the counts from the single pass (already computed)
+                    # all_target_class_num_samples[cls] = 0  # We'd need to track this
                 return None, all_target_class_num_samples
 
-            dataset = dataset.from_list(filtered_and_upscaled_dataset)
+            dataset = dataset.from_list(filtered_and_upscaled_data)
 
         else:
             num_samples = len(dataset)
-
             if num_samples < 100:
                 return None
 
@@ -217,35 +290,16 @@ class DataLoader:
 
         return dataloader
 
-    def load_test_dataset_from_disk(
-        self,
-        dataset_folder_path: str,
-        batch_size: int,
-    ) -> TorchDataLoader:
-        test_path = os.path.join(dataset_folder_path, "test_data")
-
-        test_dataset = load_from_disk(test_path).with_transform(self._apply_transforms)
-
-        test_loader = TorchDataLoader(
-            test_dataset,
-            batch_size=batch_size,
-            shuffle=False,
+    def load_dataset_from_ndarray(self, parameters, batch_size) -> TorchDataLoader:
+        dataset = NumpyDataset(
+            images=parameters[0],
+            labels=parameters[1],
+            dataset_input_feature=self.dataset_input_feature,
+            dataset_target_feature=self.dataset_target_feature,
         )
 
-        return test_loader
-
-    def load_dataset_from_ndarray(self, parameters, batch_size) -> TorchDataLoader:
-        dataset_dict = {
-            self.dataset_input_feature: parameters[0],
-            self.dataset_target_feature: parameters[1].tolist(),
-        }
-
-        hf_dataset = Dataset.from_dict(dataset_dict)
-
-        hf_dataset = hf_dataset.with_transform(self._apply_transforms)
-
         return TorchDataLoader(
-            hf_dataset,
+            dataset,
             batch_size=batch_size,
             shuffle=True,
         )

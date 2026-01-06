@@ -1,4 +1,3 @@
-import math
 import os
 
 import torch
@@ -16,6 +15,7 @@ from src.ml_models.train_vae_gan import train_vae_gan
 from src.ml_models.utils import (
     create_synthetic_data,
     get_device,
+    get_total_data_generation_rounds,
     get_weights,
     set_weights,
 )
@@ -177,8 +177,8 @@ class FlowerHFedCVAEClient(NumPyClient):
 
         data = []
 
-        total_data_generation_rounds = math.ceil(
-            metadata["num_classes"] / self.num_class_learn_per_round
+        total_data_generation_rounds = get_total_data_generation_rounds(
+            self.num_class_learn_per_round
         )
 
         if current_round <= total_data_generation_rounds:
@@ -212,10 +212,9 @@ class FlowerHFedCVAEClient(NumPyClient):
                 train_dataloader, filtered_target_class_num_samples = train_dataloader
 
             self.logger.info(
-                "Original data length for class %s: %s , len: %s",
+                "Original data length for class %s: %s",
                 target_class_list,
                 filtered_target_class_num_samples,
-                len(train_dataloader.dataset),
             )
 
             if train_dataloader is None:
@@ -290,11 +289,6 @@ class FlowerHFedCVAEClient(NumPyClient):
                 device=self.device,
                 batch_size=self.batch_size,
                 mode=self.mode,
-            )
-
-            self.logger.info(
-                "synthetic data length %s",
-                len(data[0]),
             )
 
             if self.vae:
@@ -406,22 +400,28 @@ class FlowerHFedCVAEClient(NumPyClient):
             dataset_target_feature=self.dataset_target_feature,
         )
 
-        test_dataloader = dataloader.load_test_dataset_from_disk(
-            self.dataset_folder_path, self.batch_size
+        test_dataloader = dataloader.load_dataset_from_disk(
+            "val_data",
+            self.client_data_folder_path,
+            self.batch_size,
         )
 
         results = {"client_number": self.client_number}
 
         loss, accuracy = 0, 0
 
-        if current_round <= metadata["num_classes"]:
+        total_data_generation_rounds = get_total_data_generation_rounds(
+            self.num_class_learn_per_round
+        )
+
+        if current_round <= total_data_generation_rounds:
 
             synthetic_dataloader = dataloader.load_dataset_from_ndarray(
                 parameters,
                 self.batch_size,
             )
 
-            self._save_synthetic_images(synthetic_dataloader, current_round)
+            # self._save_synthetic_images(synthetic_dataloader, current_round)
 
             train_results = train_net(
                 net=self.net,
@@ -440,7 +440,7 @@ class FlowerHFedCVAEClient(NumPyClient):
                 train_results["train_accuracy"],
             )
 
-        elif current_round > metadata["num_classes"]:
+        elif current_round > total_data_generation_rounds:
             set_weights(self.net, parameters)
 
             loss, accuracy = test_net(

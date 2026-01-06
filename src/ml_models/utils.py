@@ -1,3 +1,4 @@
+import math
 from collections import OrderedDict
 
 import torch
@@ -110,3 +111,7 @@ def create_synthetic_data(
 
 def count_params(model):
     return sum(p.numel() for p in model.parameters())
+
+
+def get_total_data_generation_rounds(num_class_learn_per_round):
+    return math.ceil(metadata["num_classes"] / num_class_learn_per_round)

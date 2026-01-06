@@ -1,14 +1,14 @@
 {
-    "num_classes": 10,
+    "num_classes": 62,
     "image_width": 28,
     "image_height": 28,
     "num_channels": 1,
     "HFedCVAE": {
         "vae_parameters": {
-            "h_dim": 224,
-            "res_h_dim": 56,
-            "n_res_layers": 3,
-            "latent_dim": 100
+            "h_dim": 128,
+            "res_h_dim": 32,
+            "n_res_layers": 2,
+            "latent_dim": 64
         }
     },
     "HFedCGAN": {
