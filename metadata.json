@@ -1,12 +1,12 @@
 {
-    "num_classes": 62,
-    "image_width": 28,
-    "image_height": 28,
-    "num_channels": 1,
+    "num_classes": 20,
+    "image_width": 32,
+    "image_height": 32,
+    "num_channels": 3,
     "HFedCVAE": {
-        "vae_parameters": {
-            "h_dim": 128,
-            "res_h_dim": 32,
+        "cvae_parameters": {
+            "h_dim": 192,
+            "res_h_dim": 48,
             "n_res_layers": 2,
             "latent_dim": 64
         }
@@ -26,10 +26,10 @@
     },
     "HFedCVAEGAN": {
         "vae_parameters": {
-            "h_dim": 224,
-            "res_h_dim": 56,
-            "n_res_layers": 3,
-            "latent_dim": 100
+            "h_dim": 128,
+            "res_h_dim": 32,
+            "n_res_layers": 2,
+            "latent_dim": 64
         },
         "discriminator_parameters": {
             "block_repeat": 1,

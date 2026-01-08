@@ -9,6 +9,7 @@ def train_vae_gan(
     epochs,
     device,
     dataset_input_feature,
+    dataset_target_feature,
 ):
     """Train VQVAE and PixelCNN sequentially for better convergence."""
     vae.to(device)
@@ -33,12 +34,13 @@ def train_vae_gan(
     for epoch in range(epochs):
         for batch in trainloader:
             images = batch[dataset_input_feature].to(device)
+            labels = batch[dataset_target_feature].to(device)
             batch_size = images.size(0)
 
             vae_optimizer.zero_grad()
 
             # Fake images
-            gen_imgs, mu, logvar = vae(images)
+            gen_imgs, mu, logvar = vae(images, labels)
 
             vae_loss, recon_loss, kl_loss = vae.vae_loss(
                 gen_imgs, images, mu, logvar, epoch
@@ -54,10 +56,10 @@ def train_vae_gan(
             discriminator_optimizer.zero_grad()
 
             # Real images
-            real_pred = discriminator(images)
+            real_pred = discriminator(images, labels)
             discriminator_real_loss = bce_loss(real_pred, valid)
 
-            fake_pred = discriminator(gen_imgs.detach())
+            fake_pred = discriminator(gen_imgs.detach(), labels)
             discriminator_fake_loss = bce_loss(fake_pred, fake)
             # Total discriminator loss
             discriminator_loss = (discriminator_real_loss + discriminator_fake_loss) / 2
@@ -71,8 +73,8 @@ def train_vae_gan(
 
             vae_optimizer.zero_grad()
 
-            gen_imgs, _, _ = vae(images)
-            validity = discriminator(gen_imgs)
+            gen_imgs, _, _ = vae(images, labels)
+            validity = discriminator(gen_imgs, labels)
 
             generator_loss = bce_loss(validity, valid)
             generator_loss.backward()

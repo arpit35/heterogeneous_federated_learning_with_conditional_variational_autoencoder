@@ -19,6 +19,7 @@ def client_fn(context: Context):
     mode = context.run_config.get("mode")
     cnn_type = context.run_config.get("cnn-type")
     num_class_learn_per_round = context.run_config.get("num-class-learn-per-round")
+    kl_loss_beta = context.run_config.get("kl-loss-beta")
 
     if mode == "HFedCVAE" or mode == "HFedCGAN" or mode == "HFedCVAEGAN":
         return FlowerHFedCVAEClient(
@@ -34,6 +35,7 @@ def client_fn(context: Context):
             cnn_type,
             mode,
             num_class_learn_per_round,
+            kl_loss_beta,
         ).to_client()
     elif mode == "default":
         return FlowerDefaultClient(

@@ -16,6 +16,8 @@ class CVAE(nn.Module):
         res_h_dim,
         n_res_layers,
         latent_dim,
+        kl_loss_beta,
+        total_epochs,
         num_classes=metadata["num_classes"],
         input_shape=(
             metadata["num_channels"],
@@ -26,6 +28,8 @@ class CVAE(nn.Module):
         super().__init__()
 
         self.num_classes = num_classes
+        self.kl_loss_beta = kl_loss_beta
+        self.total_epochs = total_epochs
 
         # ----- Encoder -----
         # Input channels + one-hot labels
@@ -62,7 +66,7 @@ class CVAE(nn.Module):
         mu:      mean of q(z|x,y)
         logvar:  log variance of q(z|x,y)
         """
-        beta = min(1, 1 * epoch / 5)
+        beta = min(self.kl_loss_beta, self.kl_loss_beta * epoch / self.total_epochs)
 
         # BCE reconstruction loss
         recon_loss = nn.functional.binary_cross_entropy(recon_x, x, reduction="sum")

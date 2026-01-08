@@ -39,6 +39,7 @@ class FlowerHFedCVAEClient(NumPyClient):
         cnn_type,
         mode,
         num_class_learn_per_round,
+        kl_loss_beta,
     ):
         super().__init__()
         self.client_number = client_number
@@ -61,6 +62,7 @@ class FlowerHFedCVAEClient(NumPyClient):
         self.cnn_type = cnn_type
         self.mode = mode
         self.num_class_learn_per_round = num_class_learn_per_round
+        self.kl_loss_beta = kl_loss_beta
 
         self.net = None
         self.vae = None
@@ -82,9 +84,12 @@ class FlowerHFedCVAEClient(NumPyClient):
                 )
             )
 
-    def _save_synthetic_images(self, dataloader, current_round):
+    def _save_synthetic_images(
+        self, dataloader, current_round, max_images_per_class=50
+    ):
         """
         Save synthetic images as PNG files in the specified directory structure.
+        Save maximum max_images_per_class images for each label.
 
         Structure: {client_model_folder_path}/round_{round}/{label}/{image_index}.png
         """
@@ -96,9 +101,14 @@ class FlowerHFedCVAEClient(NumPyClient):
         os.makedirs(round_dir, exist_ok=True)
 
         image_counter = {}
+        finished_labels = set()  # Track which labels have reached the limit
 
         # Iterate through the dataloader
         for batch_idx, batch in enumerate(dataloader):
+            # If all labels have reached the limit, break early
+            if len(finished_labels) == len(image_counter) and len(image_counter) > 0:
+                break
+
             images = batch[self.dataset_input_feature]
             labels = batch[self.dataset_target_feature]
 
@@ -110,12 +120,21 @@ class FlowerHFedCVAEClient(NumPyClient):
 
             # Process each image in the batch
             for i, (image, label) in enumerate(zip(images, labels)):
+                # Skip if this label has already reached the limit
+                if label in finished_labels:
+                    continue
+
                 # Initialize counter for this label if not exists
                 if label not in image_counter:
                     image_counter[label] = 0
                     # Create label directory
                     label_dir = os.path.join(round_dir, str(label))
                     os.makedirs(label_dir, exist_ok=True)
+
+                # Check if we've reached the limit for this class
+                if image_counter[label] >= max_images_per_class:
+                    finished_labels.add(label)
+                    continue
 
                 # Convert tensor to numpy array for saving
                 if torch.is_tensor(image):
@@ -158,8 +177,13 @@ class FlowerHFedCVAEClient(NumPyClient):
                 # Increment counter for this label
                 image_counter[label] += 1
 
+                # Check if we just reached the limit for this class
+                if image_counter[label] >= max_images_per_class:
+                    finished_labels.add(label)
+
         self.logger.info(
-            f"Saved {sum(image_counter.values())} synthetic images to {round_dir}"
+            f"Saved {sum(min(count, max_images_per_class) for count in image_counter.values())} "
+            f"synthetic images to {round_dir} (max {max_images_per_class} per class)"
         )
 
     def fit(self, parameters, config):
@@ -229,7 +253,11 @@ class FlowerHFedCVAEClient(NumPyClient):
                 )
 
             if self.mode == "HFedCVAE":
-                self.vae = CVAE(**metadata["HFedCVAE"]["vae_parameters"])
+                self.vae = CVAE(
+                    **metadata["HFedCVAE"]["cvae_parameters"],
+                    kl_loss_beta=self.kl_loss_beta,
+                    total_epochs=self.vae_epochs,
+                )
                 results.update(
                     train_vae(
                         cvae=self.vae,
@@ -265,7 +293,11 @@ class FlowerHFedCVAEClient(NumPyClient):
                 model = self.generator
 
             elif self.mode == "HFedCVAEGAN":
-                self.vae = CVAE(**metadata["HFedCVAEGAN"]["vae_parameters"])
+                self.vae = CVAE(
+                    **metadata["HFedCVAEGAN"]["vae_parameters"],
+                    kl_loss_beta=self.kl_loss_beta,
+                    total_epochs=self.vae_epochs,
+                )
                 self.discriminator = Discriminator(
                     **metadata["HFedCVAEGAN"]["discriminator_parameters"]
                 )
@@ -278,6 +310,7 @@ class FlowerHFedCVAEClient(NumPyClient):
                         epochs=self.vae_epochs,
                         device=self.device,
                         dataset_input_feature=self.dataset_input_feature,
+                        dataset_target_feature=self.dataset_target_feature,
                     )
                 )
 

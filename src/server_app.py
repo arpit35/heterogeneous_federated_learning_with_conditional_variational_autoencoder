@@ -167,10 +167,11 @@ class CustomFedAvg(FedAvg):
 
         if server_round == self.num_server_rounds:
             os.makedirs(self.plots_folder_path, exist_ok=True)
+            safe_dataset_name = self.dataset_name.replace("/", "_")
 
             results_file_path = os.path.join(
                 self.plots_folder_path,
-                f"{self.mode}_{self.num_of_clients}_{self.num_class_learn_per_round}_{self.dataset_name}_results.json",
+                f"{self.mode}_{self.num_of_clients}_{self.num_class_learn_per_round}_{safe_dataset_name}_results.json",
             )
 
             with open(results_file_path, "w", encoding="utf-8") as file:
@@ -178,7 +179,7 @@ class CustomFedAvg(FedAvg):
 
             round_times_file_path = os.path.join(
                 self.plots_folder_path,
-                f"{self.mode}_{self.num_of_clients}_{self.num_class_learn_per_round}_{self.dataset_name}_round_times.json",
+                f"{self.mode}_{self.num_of_clients}_{self.num_class_learn_per_round}_{safe_dataset_name}_round_times.json",
             )
 
             with open(round_times_file_path, "w", encoding="utf-8") as file:

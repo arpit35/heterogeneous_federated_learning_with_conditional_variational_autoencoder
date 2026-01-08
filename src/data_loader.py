@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import numpy as np
 import torch
-from datasets import Dataset, load_from_disk
+from datasets import Dataset, DatasetDict, load_from_disk
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import DirichletPartitioner
 from torch.utils.data import DataLoader as TorchDataLoader
@@ -37,9 +37,7 @@ class NumpyDataset(Dataset):
         img = self.images[idx]
         label = self.labels[idx]
 
-        # ⚠️ ALWAYS allocates new memory
         x = torch.tensor(img, dtype=torch.float32)
-
         y = torch.tensor(label, dtype=torch.long)
 
         return {
@@ -75,15 +73,44 @@ class DataLoader:
             batch[self.dataset_input_feature] = transformed_images
         return batch
 
-    def _load_partition(self, num_clients: int, alpha: float):
+    def _limit_global_samples_per_class(self, dataset, max_per_class, seed=42):
+        random.seed(seed)
+
+        dataset = dataset["train"]
+
+        class_indices = defaultdict(list)
+
+        # Collect indices per class
+        for idx, example in enumerate(dataset):
+            cls = example[self.dataset_target_feature]
+            class_indices[cls].append(idx)
+
+        # Subsample indices
+        selected_indices = []
+        for cls, indices in class_indices.items():
+            if len(indices) > max_per_class:
+                indices = random.sample(indices, max_per_class)
+            selected_indices.extend(indices)
+
+        # Create filtered dataset
+        dataset = dataset.select(selected_indices)
+
+        return DatasetDict({"train": dataset})
+
+    def _load_partition(self, num_clients: int, alpha: float, max_per_class: int):
         partitioner = DirichletPartitioner(
             num_partitions=num_clients,
             partition_by=self.dataset_target_feature,
             alpha=alpha,
             self_balancing=True,
         )
+
         return FederatedDataset(
-            dataset=self.dataset_name, partitioners={"train": partitioner}
+            dataset=self.dataset_name,
+            partitioners={"train": partitioner},
+            preprocessor=lambda dataset: self._limit_global_samples_per_class(
+                dataset, max_per_class=max_per_class
+            ),
         )
 
     def _get_dataset_metadata(self, fds: FederatedDataset, num_clients: int):
@@ -122,33 +149,14 @@ class DataLoader:
             "num_channels": channels,
         }
 
-    def limit_samples_per_class(self, dataset, max_per_class, seed=42):
-        random.seed(seed)
-
-        class_indices = defaultdict(list)
-
-        # Collect indices per class
-        for idx, example in enumerate(dataset):
-            cls = example[self.dataset_target_feature]
-            class_indices[cls].append(idx)
-
-        # Subsample indices
-        selected_indices = []
-        for cls, indices in class_indices.items():
-            if len(indices) > max_per_class:
-                indices = random.sample(indices, max_per_class)
-            selected_indices.extend(indices)
-
-        # Create filtered dataset
-        return dataset.select(selected_indices)
-
     def save_datasets_to_disk(
         self,
         num_clients: int,
         alpha: float,
+        max_per_class: int,
         dataset_folder_path: str,
     ):
-        fds = self._load_partition(num_clients, alpha)
+        fds = self._load_partition(num_clients, alpha, max_per_class)
 
         # Get dataset metadata
         save_metadata(self._get_dataset_metadata(fds, num_clients))
@@ -160,8 +168,6 @@ class DataLoader:
             os.makedirs(client_dataset_folder_path, exist_ok=True)
 
             partition = fds.load_partition(client_id)
-
-            partition = self.limit_samples_per_class(partition, max_per_class=6000)
 
             labels = partition[self.dataset_target_feature]
             # Compute the unique classes and their counts
