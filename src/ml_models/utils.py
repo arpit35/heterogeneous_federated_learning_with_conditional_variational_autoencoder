@@ -49,7 +49,7 @@ def create_synthetic_data(
     synthetic_labels = []
 
     if mode == "HFedCVAE":
-        latent_dim = metadata["HFedCVAE"]["vae_parameters"]["latent_dim"]
+        latent_dim = metadata["HFedCVAE"]["cvae_parameters"]["latent_dim"]
     elif mode == "HFedCGAN":
         latent_dim = metadata["HFedCGAN"]["generator_parameters"]["latent_dim"]
     elif mode == "HFedCVAEGAN":
