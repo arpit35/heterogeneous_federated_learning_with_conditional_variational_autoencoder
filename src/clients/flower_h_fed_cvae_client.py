@@ -287,6 +287,7 @@ class FlowerHFedCVAEClient(NumPyClient):
                         epochs=self.vae_epochs,
                         device=self.device,
                         dataset_input_feature=self.dataset_input_feature,
+                        dataset_target_feature=self.dataset_target_feature,
                     )
                 )
 
