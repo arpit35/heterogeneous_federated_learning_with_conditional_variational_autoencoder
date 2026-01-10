@@ -11,6 +11,7 @@ def train_gan(
     epochs,
     device,
     dataset_input_feature,
+    dataset_target_feature,
 ):
     """Train VQVAE and PixelCNN sequentially for better convergence."""
     generator.to(device)
@@ -32,6 +33,7 @@ def train_gan(
     for _ in range(epochs):
         for batch in trainloader:
             images = batch[dataset_input_feature].to(device)
+            labels = batch[dataset_target_feature].to(device)
             batch_size = images.size(0)
 
             # Adversarial ground truths
@@ -41,7 +43,7 @@ def train_gan(
             discriminator_optimizer.zero_grad()
 
             # Real images
-            real_pred = discriminator(images)
+            real_pred = discriminator(images, labels)
             discriminator_real_loss = bce_loss(real_pred, valid)
 
             # Fake images
@@ -50,9 +52,9 @@ def train_gan(
                 metadata["HFedCGAN"]["generator_parameters"]["latent_dim"],
                 device=device,
             )
-            gen_imgs = generator(z)
+            gen_imgs = generator(z, labels)
 
-            fake_pred = discriminator(gen_imgs.detach())
+            fake_pred = discriminator(gen_imgs.detach(), labels)
             discriminator_fake_loss = bce_loss(fake_pred, fake)
             # Total discriminator loss
             discriminator_loss = (discriminator_real_loss + discriminator_fake_loss) / 2
@@ -62,7 +64,7 @@ def train_gan(
             # Generate images and calculate loss
             generator_optimizer.zero_grad()
 
-            validity = discriminator(gen_imgs)
+            validity = discriminator(gen_imgs, labels)
             generator_loss = bce_loss(validity, valid)
             generator_loss.backward()
             generator_optimizer.step()

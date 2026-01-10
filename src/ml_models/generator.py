@@ -1,5 +1,7 @@
+import torch
 import torch.nn as nn
 
+from src.ml_models.utils import one_hot_labels
 from src.scripts.helper import metadata
 
 
@@ -15,28 +17,31 @@ class Generator(nn.Module):
         h_dim,
         latent_dim,
         init_img_dim,
+        num_classes=metadata["num_classes"],
         out_dim=metadata["num_channels"],
     ):
         super(Generator, self).__init__()
 
         def generator_block(in_filters, out_filters):
-            block = [
+            return nn.Sequential(
                 nn.Upsample(scale_factor=2),
                 nn.Conv2d(in_filters, out_filters, 3, stride=1, padding=1),
                 nn.BatchNorm2d(out_filters),
                 nn.LeakyReLU(0.2, inplace=True),
-            ]
-            return block
+            )
 
         self.init_img_dim = init_img_dim
+        self.num_classes = num_classes
 
         block_h_dim = h_dim
-        self.fc1 = nn.Linear(latent_dim, block_h_dim * self.init_img_dim**2)
+        self.fc1 = nn.Linear(
+            latent_dim + num_classes, block_h_dim * self.init_img_dim**2
+        )
 
-        generator_block_list = []
+        blocks = []
 
         for _ in range(n_block_layers):
-            generator_block_list.extend(generator_block(block_h_dim, block_h_dim // 2))
+            blocks.append(generator_block(block_h_dim, block_h_dim // 2))
 
             block_h_dim = block_h_dim // 2
 
@@ -45,7 +50,7 @@ class Generator(nn.Module):
         )
 
         self.conv_t_stack = nn.Sequential(
-            *generator_block_list,
+            *blocks,
             nn.ConvTranspose2d(
                 block_h_dim,
                 out_dim,
@@ -55,7 +60,10 @@ class Generator(nn.Module):
             nn.Sigmoid(),
         )
 
-    def forward(self, x):
+    def forward(self, x, labels):
+        one_hot = one_hot_labels(labels, self.num_classes)
+        x = torch.cat([x, one_hot], dim=1)
+
         x = self.fc1(x)
         x = x.view(x.size(0), -1, self.init_img_dim, self.init_img_dim)
         return self.conv_t_stack(x)

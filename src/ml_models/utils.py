@@ -97,7 +97,7 @@ def create_synthetic_data(
                     images = model.decoder(z_cond)
             elif mode == "HFedCGAN":
                 with torch.no_grad():
-                    images = model(z)
+                    images = model(z, labels)
 
             synthetic_data.append(images.cpu())
             synthetic_labels.append(labels.cpu())

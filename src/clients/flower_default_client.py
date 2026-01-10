@@ -115,8 +115,10 @@ class FlowerDefaultClient(NumPyClient):
             dataset_target_feature=self.dataset_target_feature,
         )
 
-        test_dataloader = dataloader.load_test_dataset_from_disk(
-            self.dataset_folder_path, self.batch_size
+        test_dataloader = dataloader.load_dataset_from_disk(
+            "val_data",
+            self.client_data_folder_path,
+            self.batch_size,
         )
 
         results = {"client_number": self.client_number}
