@@ -24,7 +24,7 @@ net-epochs = 3
 vae-epochs = 12
 batch-size = 64
 data-loader-alpha = 0.1
-num-server-rounds = 60
+num-server-rounds = 500
 prepare-dataset = false
 # cnn1, cnn2, cnn3, cnn4, cnn5
 cnn-type = "cnn5"
