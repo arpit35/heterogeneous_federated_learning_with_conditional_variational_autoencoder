@@ -278,7 +278,7 @@ class DataLoader:
 
         else:
             num_samples = len(dataset)
-            if num_samples < 100:
+            if num_samples < 100 and data_type != "val_data":
                 return None
 
         # Apply transforms

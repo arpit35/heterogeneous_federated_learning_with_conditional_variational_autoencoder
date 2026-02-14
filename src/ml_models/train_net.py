@@ -54,6 +54,10 @@ def test_net(
     dataset_target_feature,
 ):
     """Validate the model on the test set."""
+    # Handle case where testloader is None
+    if testloader is None:
+        return 0.0, 0.0
+
     net.to(device)  # move model to GPU if available
     criterion = torch.nn.CrossEntropyLoss()
     correct, loss = 0, 0.0

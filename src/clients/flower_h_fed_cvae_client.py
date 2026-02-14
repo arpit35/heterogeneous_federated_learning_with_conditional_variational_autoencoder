@@ -440,6 +440,8 @@ class FlowerHFedCVAEClient(NumPyClient):
             self.batch_size,
         )
 
+        self.logger.info("test_dataloader_len %s", len(test_dataloader.dataset))
+
         results = {"client_number": self.client_number}
 
         loss, accuracy = 0, 0

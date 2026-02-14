@@ -15,7 +15,7 @@ def prepare_dataset(
     num_of_clients = int(config.get("num-of-clients", 0))
     dataset_name = str(config.get("dataset-name", None))
     alpha = float(config.get("data-loader-alpha", 0))
-    max_per_class = float(config.get("max-per-class", 0))
+    max_per_class = int(config.get("max-per-class", 0))
     dataset_input_feature = str(config.get("dataset-input-feature", None))
     dataset_target_feature = str(config.get("dataset-target-feature", None))
 

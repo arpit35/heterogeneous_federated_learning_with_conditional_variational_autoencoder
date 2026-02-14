@@ -24,13 +24,13 @@ net-epochs = 3
 vae-epochs = 12
 batch-size = 64
 data-loader-alpha = 0.1
-num-server-rounds = 500
+num-server-rounds = 100
 prepare-dataset = false
 # cnn1, cnn2, cnn3, cnn4, cnn5
 cnn-type = "cnn5"
 # HFedCVAE, HFedCGAN, HFedCVAEGAN, default, 
-mode = "HFedCGAN"
-num-class-learn-per-round = 7
+mode = "HFedCVAE"
+num-class-learn-per-round = 10
 kl-loss-beta = 1
 
 # Paths
@@ -40,7 +40,7 @@ plots-folder-path = "src/plots"
 model-folder-path = "src/clients_models"
 
 # Dataset and Model Configuration - mnist, fashion_mnist, claudiogsc/emnist_balanced, cifar10(dataset-input-feature=img), flwrlabs/femnist(ataset-target-feature=character), cifar100(dataset-input-feature=img, dataset-target-feature=fine_label(100)/coarse_label(20))
-dataset-name = "claudiogsc/emnist_balanced"
+dataset-name = "fashion_mnist"
 dataset-input-feature = "image"
 dataset-target-feature = "label"
 max-per-class = 3000
@@ -54,7 +54,7 @@ options.num-supernodes = 5
 [tool.flwr.federations.local-simulation-gpu]
 options.num-supernodes = 5
 options.backend.client-resources.num-cpus = 2 # each ClientApp assumes to use 2CPUs
-options.backend.client-resources.num-gpus = 0.1 # at most 5 ClientApp will run in a given GPU
+options.backend.client-resources.num-gpus = 0.2 # at most 5 ClientApp will run in a given GPU
 
 [tool.pylint.'MESSAGES CONTROL']
 disable = ["missing-docstring"]

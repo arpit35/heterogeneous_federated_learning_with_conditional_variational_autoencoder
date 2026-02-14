@@ -1,8 +1,7 @@
 {
-    "HFedCVAE_7": "HFedCVAE_7",
-    "HFedCVAEGAN_47": "HFedCVAEGAN_47",
-    "HFedCVAEGAN_7": "HFedCVAEGAN_7",
+    "HFedCVAE_7": "HFedCVAE(7)",
+    "HFedCVAEGAN_7": "HFedCVAEGAN(7)",
     "HFedCVAE_47": "SOA",
     "default_7": "Default FL",
-    "HFedCGAN_7": "HFedCGAN_7"
+    "HFedCGAN_7": "HFedCGAN(7)"
 }
