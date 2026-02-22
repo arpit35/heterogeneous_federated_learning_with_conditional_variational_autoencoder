@@ -36,7 +36,7 @@ kl-loss-beta = 2
 # Paths
 logs-folder-path = "log"
 dataset-folder-path = "src/clients_dataset"
-plots-folder-path = "src/plots"
+plots-folder-path = "src/plots/fashion_mnist"
 model-folder-path = "src/clients_models"
 
 # Dataset and Model Configuration -  mnist, fashion_mnist, claudiogsc/emnist_balanced, cifar10(dataset-input-feature=img), flwrlabs/femnist(ataset-target-feature=character), cifar100(dataset-input-feature=img, dataset-target-feature=fine_label(100)/coarse_label(20)), tanganke/emnist_letters
