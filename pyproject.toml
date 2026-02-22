@@ -24,13 +24,13 @@ net-epochs = 3
 vae-epochs = 12
 batch-size = 64
 data-loader-alpha = 0.1
-num-server-rounds = 500
-prepare-dataset = false
+num-server-rounds = 100
+prepare-dataset = true
 # cnn1, cnn2, cnn3, cnn4, cnn5
 cnn-type = "cnn5"
 # HFedCVAE, HFedCGAN, HFedCVAEGAN, default, 
-mode = "HFedCGAN"
-num-class-learn-per-round = 5
+mode = "HFedCVAE"
+num-class-learn-per-round = 1
 kl-loss-beta = 2
 
 # Paths
@@ -39,8 +39,8 @@ dataset-folder-path = "src/clients_dataset"
 plots-folder-path = "src/plots"
 model-folder-path = "src/clients_models"
 
-# Dataset and Model Configuration - mnist, fashion_mnist, claudiogsc/emnist_balanced, cifar10(dataset-input-feature=img), flwrlabs/femnist(ataset-target-feature=character), cifar100(dataset-input-feature=img, dataset-target-feature=fine_label(100)/coarse_label(20))
-dataset-name = "fashion_mnist"
+# Dataset and Model Configuration -  mnist, fashion_mnist, claudiogsc/emnist_balanced, cifar10(dataset-input-feature=img), flwrlabs/femnist(ataset-target-feature=character), cifar100(dataset-input-feature=img, dataset-target-feature=fine_label(100)/coarse_label(20)), tanganke/emnist_letters
+dataset-name = "tanganke/emnist_letters"
 dataset-input-feature = "image"
 dataset-target-feature = "label"
 max-per-class = 3000
