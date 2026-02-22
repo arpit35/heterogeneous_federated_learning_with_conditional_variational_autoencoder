@@ -31,7 +31,7 @@ cnn-type = "cnn5"
 # HFedCVAE, HFedCGAN, HFedCVAEGAN, default, 
 mode = "HFedCVAE"
 num-class-learn-per-round = 10
-kl-loss-beta = 1
+kl-loss-beta = 2
 
 # Paths
 logs-folder-path = "log"
