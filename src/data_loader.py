@@ -58,6 +58,7 @@ class DataLoader:
         self.dataset_target_feature = dataset_target_feature
         self.pytorch_transforms = self.pytorch_transforms = transforms.Compose(
             [
+                transforms.Resize((28, 28)),
                 transforms.ToTensor(),
             ]
         )
@@ -144,8 +145,8 @@ class DataLoader:
         # Save metadata
         return {
             "num_classes": num_classes,
-            "image_width": width,
-            "image_height": height,
+            # "image_width": width,
+            # "image_height": height,
             "num_channels": channels,
         }
 
