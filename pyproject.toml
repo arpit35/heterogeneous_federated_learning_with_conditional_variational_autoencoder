@@ -17,7 +17,7 @@ serverapp = "src.server_app:app"
 clientapp = "src.client_app:app"
 
 [tool.flwr.app.config]
-num-of-clients = 3
+num-of-clients = 7
 net-learning-rate = 0.001
 fraction-evaluate = 1
 net-epochs = 3
@@ -25,7 +25,7 @@ vae-epochs = 12
 batch-size = 64
 data-loader-alpha = 0.1
 num-server-rounds = 500
-prepare-dataset = false
+prepare-dataset = true
 # cnn1, cnn2, cnn3, cnn4, cnn5
 cnn-type = "cnn5"
 # HFedCVAE, HFedCGAN, HFedCVAEGAN, default, 
@@ -36,7 +36,7 @@ kl-loss-beta = 2
 # Paths
 logs-folder-path = "log"
 dataset-folder-path = "src/clients_dataset"
-plots-folder-path = "src/plots/tanganke_emnist_letters_3"
+plots-folder-path = "src/plots/tanganke_emnist_letters_7"
 model-folder-path = "src/clients_models"
 
 # Dataset and Model Configuration -  mnist, fashion_mnist, claudiogsc/emnist_balanced, cifar10(dataset-input-feature=img), flwrlabs/femnist(ataset-target-feature=character), cifar100(dataset-input-feature=img, dataset-target-feature=fine_label(100)/coarse_label(20)), tanganke/emnist_letters
@@ -49,10 +49,10 @@ max-per-class = 3000
 default = "local-simulation"
 
 [tool.flwr.federations.local-simulation]
-options.num-supernodes = 3
+options.num-supernodes = 7
 
 [tool.flwr.federations.local-simulation-gpu]
-options.num-supernodes = 3
+options.num-supernodes = 7
 options.backend.client-resources.num-cpus = 2 # each ClientApp assumes to use 2CPUs
 options.backend.client-resources.num-gpus = 0.2 # at most 5 ClientApp will run in a given GPU
 
